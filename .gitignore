@@ -4,6 +4,7 @@
 # Keep repository metadata needed by Git users.
 !.gitignore
 !README.md
+!README.en.md
 
 # Keep the project directories that should be uploaded.
 !Bridge/
@@ -20,4 +21,3 @@
 .vscode/
 **/.pio/
 **/.vscode/
-
