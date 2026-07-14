@@ -12,6 +12,10 @@ constexpr uint8_t YELLOW_LED_PIN = 5;
 constexpr uint8_t LEDS_PER_CHANNEL = 1;
 constexpr uint8_t DEFAULT_BRIGHTNESS = 64;
 
+constexpr unsigned long SERIAL_BAUD = 115200;
+constexpr uint16_t UDP_PORT = 4210;
+constexpr unsigned long WIRELESS_TIMEOUT_MS = 10000;
+
 constexpr uint8_t RED_COLOR_R = 255;
 constexpr uint8_t RED_COLOR_G = 0;
 constexpr uint8_t RED_COLOR_B = 0;

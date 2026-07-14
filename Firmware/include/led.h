@@ -7,6 +7,10 @@ class LedController {
  public:
   void begin();
 
+  void showRed();
+  void showGreen();
+  void showYellow();
+
   void redOn();
   void redOff();
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import sqlite3
 import sys
 import time
@@ -41,32 +42,176 @@ class MonitorState:
 
 
 class StateEmitter:
-    def __init__(self, serial_port: Optional[str], baud: int, repeat: bool) -> None:
+    def __init__(
+        self,
+        serial_port: Optional[str],
+        baud: int,
+        repeat: bool,
+        udp: bool,
+        udp_host: str,
+        udp_port: int,
+        udp_interval: float,
+    ) -> None:
         self.repeat = repeat
         self.last_state: Optional[str] = None
+        self.serial_port = serial_port
+        self.baud = baud
         self.serial = None
+        self.serial_module = None
+        self.list_ports_module = None
+        self.last_connect_attempt = 0.0
+        self.udp_enabled = udp
+        self.udp_host = udp_host
+        self.udp_port = udp_port
+        self.udp_interval = udp_interval
+        self.udp_socket = None
+        self.last_udp_send = 0.0
 
         if serial_port:
             try:
                 import serial  # type: ignore
+                from serial.tools import list_ports  # type: ignore
             except ImportError as exc:
                 raise SystemExit(
                     "pyserial is required for --serial. Install it with: pip install pyserial"
                 ) from exc
-            self.serial = serial.Serial(serial_port, baudrate=baud, timeout=1)
+            self.serial_module = serial
+            self.list_ports_module = list_ports
+            self.connect_serial(force=True)
+
+        if self.udp_enabled:
+            self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    def connect_serial(self, force: bool = False) -> None:
+        if not self.serial_port or self.serial_module is None:
+            return
+
+        now = time.monotonic()
+        if not force and now - self.last_connect_attempt < 5.0:
+            return
+        self.last_connect_attempt = now
+
+        if self.serial is not None and getattr(self.serial, "is_open", False):
+            return
+
+        port = self.resolve_serial_port()
+        if port is None:
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL no matching serial port", flush=True)
+            return
+
+        try:
+            self.serial = self.serial_module.Serial(port, baudrate=self.baud, timeout=1)
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL connected {port}", flush=True)
+            if self.last_state:
+                self.serial.write((self.last_state + "\n").encode("ascii"))
+                self.serial.flush()
+        except Exception as exc:  # pyserial raises platform-specific exceptions.
+            self.serial = None
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL connect failed {port}: {exc}", flush=True)
+
+    def resolve_serial_port(self) -> Optional[str]:
+        if not self.serial_port:
+            return None
+        if self.serial_port.lower() != "auto":
+            return self.serial_port
+        if self.list_ports_module is None:
+            return None
+
+        ports = list(self.list_ports_module.comports())
+        if not ports:
+            return None
+
+        ranked = sorted(ports, key=self.serial_rank, reverse=True)
+        best = ranked[0]
+        return best.device if self.serial_rank(best) > 0 else None
+
+    @staticmethod
+    def serial_rank(port: object) -> int:
+        text = " ".join(
+            str(getattr(port, name, "") or "")
+            for name in ("device", "name", "description", "manufacturer", "product", "hwid")
+        ).lower()
+        vid = getattr(port, "vid", None)
+        pid = getattr(port, "pid", None)
+
+        score = 0
+        # Common ESP32-C3 / USB serial chips and native USB CDC devices.
+        if vid in {0x303A, 0x10C4, 0x1A86, 0x0403, 0x239A, 0x2E8A}:
+            score += 50
+        if pid in {0x1001, 0xEA60, 0x7523, 0x7522, 0x6001}:
+            score += 20
+
+        keywords = (
+            "esp32",
+            "espressif",
+            "usb jtag",
+            "usb serial",
+            "serial port",
+            "cp210",
+            "ch340",
+            "ch341",
+            "silicon labs",
+            "wch",
+            "ftdi",
+            "cdc",
+            "uart",
+        )
+        for keyword in keywords:
+            if keyword in text:
+                score += 10
+        return score
+
+    def close_serial(self) -> None:
+        if self.serial is None:
+            return
+        try:
+            self.serial.close()
+        except Exception:
+            pass
+        self.serial = None
 
     def emit(self, state: str, reason: str) -> None:
-        if not self.repeat and state == self.last_state:
+        state_changed = state != self.last_state
+        now = time.monotonic()
+        should_repeat_udp = (
+            self.udp_enabled
+            and self.last_state is not None
+            and now - self.last_udp_send >= self.udp_interval
+        )
+
+        if not self.repeat and not state_changed and not should_repeat_udp:
             return
 
         self.last_state = state
         stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         line = f"{stamp} {state:<6} {reason}"
-        print(line, flush=True)
+        if self.repeat or state_changed:
+            print(line, flush=True)
 
-        if self.serial is not None:
-            self.serial.write((state + "\n").encode("ascii"))
-            self.serial.flush()
+        if self.serial_port:
+            self.connect_serial()
+
+        if self.serial is not None and (self.repeat or state_changed):
+            try:
+                self.serial.write((state + "\n").encode("ascii"))
+                self.serial.flush()
+            except Exception as exc:
+                print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL write failed: {exc}", flush=True)
+                self.close_serial()
+
+        if self.udp_enabled:
+            self.emit_udp(state)
+
+    def emit_udp(self, state: str) -> None:
+        if self.udp_socket is None:
+            return
+        payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
+        try:
+            self.udp_socket.sendto(payload, (self.udp_host, self.udp_port))
+            self.last_udp_send = time.monotonic()
+        except OSError as exc:
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
 
 
 def default_sessions_root() -> Path:
@@ -304,15 +449,32 @@ def parse_args() -> argparse.Namespace:
         help="Seconds after app-server item/completed before returning to GREEN.",
     )
     parser.add_argument("--from-start", action="store_true", help="Process existing JSONL content.")
-    parser.add_argument("--serial", help="Optional serial port, for example COM5.")
+    parser.add_argument("--serial", help="Optional serial port, for example COM5, or auto.")
     parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--udp", action="store_true", help="Broadcast states over UDP.")
+    parser.add_argument("--udp-host", default="255.255.255.255", help="UDP host or broadcast address.")
+    parser.add_argument("--udp-port", type=int, default=4210, help="UDP destination port.")
+    parser.add_argument(
+        "--udp-interval",
+        type=float,
+        default=2.0,
+        help="Seconds between repeated UDP state heartbeats.",
+    )
     parser.add_argument("--repeat", action="store_true", help="Print/send repeated identical states.")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    emitter = StateEmitter(args.serial, args.baud, args.repeat)
+    emitter = StateEmitter(
+        args.serial,
+        args.baud,
+        args.repeat,
+        args.udp,
+        args.udp_host,
+        args.udp_port,
+        args.udp_interval,
+    )
     ms = MonitorState()
     offsets: Dict[Path, int] = {}
 

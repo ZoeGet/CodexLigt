@@ -36,6 +36,27 @@ void LedController::begin() {
   allOff();
 }
 
+void LedController::showRed() {
+  redLed[0] = RED_COLOR;
+  greenLed[0] = CRGB::Black;
+  yellowLed[0] = CRGB::Black;
+  FastLED.show();
+}
+
+void LedController::showGreen() {
+  redLed[0] = CRGB::Black;
+  greenLed[0] = GREEN_COLOR;
+  yellowLed[0] = CRGB::Black;
+  FastLED.show();
+}
+
+void LedController::showYellow() {
+  redLed[0] = CRGB::Black;
+  greenLed[0] = CRGB::Black;
+  yellowLed[0] = YELLOW_COLOR;
+  FastLED.show();
+}
+
 void LedController::redOn() {
   setLed(redLed, RED_COLOR);
 }

@@ -2,24 +2,41 @@
 
 [简体中文](README.md) | English
 
-CodexLight is a three-color status light project based on ESP32-C3 SuperMini. The current firmware foundation is implemented with PlatformIO, Arduino Framework, and FastLED. It drives three independent WS2812B LEDs for hardware display of Codex status signals.
+CodexLight is a Codex status light project based on ESP32-C3 SuperMini. It uses three independent WS2812B LEDs to show the current Codex state, and a desktop-side Bridge monitors local Codex Desktop logs.
 
-## Current Status
+Two connection methods are supported:
 
-- PlatformIO firmware project has been created under `Firmware/`.
-- FastLED dependency has been added.
-- `LedController` has been implemented, and `main.cpp` does not call the FastLED API directly.
+- Wired USB serial: the desktop bridge automatically finds the ESP32 serial port and sends `GREEN` / `RED` / `YELLOW`
+- Wireless UDP: the desktop bridge broadcasts state packets on the LAN, and the ESP32 listens over Wi-Fi
+
+Both methods can be enabled at the same time, or you can choose only one.
+
+## State Mapping
+
+| Light | Codex state |
+| --- | --- |
+| Green | idle, completed, or no recent agent activity |
+| Red | thinking, writing, running tools, or taking action |
+| Yellow | waiting for approval or explicit user input |
+
+## Current Features
+
+- PlatformIO firmware project under `Firmware/`.
+- Arduino Framework and FastLED are integrated.
+- `LedController` wraps LED control so business logic does not call FastLED directly.
 - Three independent single-pixel WS2812B LEDs are supported.
-- GPIO pins, default brightness, and color parameters are centralized in `config.h`.
+- USB serial state commands are supported.
+- Wi-Fi UDP state commands are supported.
+- Desktop Bridge monitors local Codex JSONL/SQLite logs.
+- Desktop Bridge supports automatic serial detection, UDP broadcast, and Win10 tray background mode.
 - Firmware has been verified with `pio run`.
-- Hardware schematic files have been added under `Hardware/Schematic/`.
-- `Bridge/` and `Docs/` are reserved for the future bridge program and project documentation.
+- Hardware schematic files are under `Hardware/Schematic/`.
 
 ## Hardware Configuration
 
 MCU: ESP32-C3 SuperMini
 
-LEDs: three independent WS2812B LEDs. They are not connected as a chained strip. Each LED has its own data line, and each channel uses `NUM_LEDS = 1`.
+LEDs: three independent WS2812B LEDs. They are not connected as a chained strip. Each LED has its own data line, and each channel uses `LEDS_PER_CHANNEL = 1`.
 
 | LED | GPIO | Color |
 | --- | --- | --- |
@@ -29,7 +46,7 @@ LEDs: three independent WS2812B LEDs. They are not connected as a chained strip.
 
 Hardware connection notes:
 
-- Each WS2812B DIN line has a 330Ω series resistor.
+- Each WS2812B DIN line has a 330 ohm series resistor.
 - Each WS2812B has a 100nF decoupling capacitor near its power pins.
 - LED power ground and ESP32-C3 ground must be connected together.
 
@@ -41,19 +58,21 @@ CodexLight/
 ├── README.en.md
 ├── .gitignore
 ├── Bridge/
-│   └── .gitkeep
+│   ├── CodexLightTray.ps1
+│   ├── README.md
+│   ├── README_en.md
+│   ├── codex_light_monitor.py
+│   └── start_codex_light_tray.bat
 ├── Docs/
-│   └── .gitkeep
 ├── Firmware/
 │   ├── platformio.ini
 │   ├── include/
 │   │   ├── config.h
-│   │   └── led.h
-│   ├── src/
-│   │   ├── main.cpp
-│   │   └── led.cpp
-│   ├── lib/
-│   └── test/
+│   │   ├── led.h
+│   │   └── wifi_secrets.example.h
+│   └── src/
+│       ├── main.cpp
+│       └── led.cpp
 └── Hardware/
     └── Schematic/
         └── Schematic1.pdf
@@ -61,14 +80,97 @@ CodexLight/
 
 Directory overview:
 
-- `Bridge/`: reserved for the desktop-side, plugin, or status bridge program.
-- `Docs/`: reserved for project documentation.
+- `Bridge/`: desktop-side bridge program that monitors Codex logs and sends light states.
+- `Docs/`: project documentation directory.
 - `Firmware/`: ESP32-C3 firmware project.
 - `Hardware/`: schematic and future hardware files.
 
-## Firmware Framework
+## Desktop Bridge
 
-The firmware project is located in `Firmware/`. Current PlatformIO environment:
+The bridge script is located at:
+
+```text
+Bridge/codex_light_monitor.py
+```
+
+It monitors local Codex logs:
+
+```text
+C:\Users\<you>\.codex\sessions\YYYY\MM\DD\rollout-*.jsonl
+C:\Users\<you>\.codex\logs_2.sqlite
+```
+
+### Console Mode
+
+Monitor and print states only:
+
+```powershell
+python Bridge\codex_light_monitor.py
+```
+
+Use USB serial:
+
+```powershell
+python Bridge\codex_light_monitor.py --serial auto --baud 115200
+```
+
+Use UDP broadcast:
+
+```powershell
+python Bridge\codex_light_monitor.py --udp --udp-port 4210
+```
+
+Enable both USB serial and UDP:
+
+```powershell
+python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210
+```
+
+### Win10 Tray Background Mode
+
+Double-click:
+
+```text
+Bridge\start_codex_light_tray.bat
+```
+
+By default, it enables both wired serial and wireless UDP:
+
+```bat
+set "MONITOR_ARGS=--serial auto --baud 115200 --udp --udp-port 4210"
+```
+
+The tray icon appears in the folded notification area at the right side of the Win10 taskbar. Right-click it to open the log folder, restart the monitor script, or exit the background program.
+
+### Bridge Protocols
+
+USB serial output:
+
+```text
+GREEN
+RED
+YELLOW
+```
+
+UDP output is sent to `255.255.255.255:4210` by default, and the current state is repeated every 2 seconds as a heartbeat:
+
+```text
+CODEXLIGHT/1 GREEN
+CODEXLIGHT/1 RED
+CODEXLIGHT/1 YELLOW
+```
+
+Serial mode requires pyserial:
+
+```powershell
+pip install pyserial
+```
+
+UDP mode has no third-party Python dependency.
+
+## Firmware
+
+The firmware project is located in `Firmware/`:
 
 ```ini
 [env:esp32-c3-devkitm-1]
@@ -78,62 +180,69 @@ framework = arduino
 lib_deps = fastled/FastLED
 ```
 
-### Configuration
-
-`Firmware/include/config.h` centralizes hardware and display parameters:
+`Firmware/include/config.h` centralizes hardware and communication parameters:
 
 - `RED_LED_PIN = 7`
 - `GREEN_LED_PIN = 6`
 - `YELLOW_LED_PIN = 5`
 - `LEDS_PER_CHANNEL = 1`
 - `DEFAULT_BRIGHTNESS = 64`
-- RGB parameters for red, green, and yellow display colors
+- `SERIAL_BAUD = 115200`
+- `UDP_PORT = 4210`
+- `WIRELESS_TIMEOUT_MS = 10000`
 
-### LED Controller
-
-`Firmware/include/led.h` defines the public `LedController` API:
-
-```cpp
-void begin();
-
-void redOn();
-void redOff();
-
-void greenOn();
-void greenOff();
-
-void yellowOn();
-void yellowOff();
-
-void allOn();
-void allOff();
-
-void setBrightness(uint8_t brightness);
-```
-
-`Firmware/src/led.cpp` uses FastLED internally and creates one independent controller for each GPIO:
+`Firmware/include/led.h` defines the public `LedController` API, including single-state display methods:
 
 ```cpp
-FastLED.addLeds<WS2812B, RED_LED_PIN, GRB>(redLed, LEDS_PER_CHANNEL);
-FastLED.addLeds<WS2812B, GREEN_LED_PIN, GRB>(greenLed, LEDS_PER_CHANNEL);
-FastLED.addLeds<WS2812B, YELLOW_LED_PIN, GRB>(yellowLed, LEDS_PER_CHANNEL);
+void showRed();
+void showGreen();
+void showYellow();
 ```
 
-`Firmware/src/main.cpp` only handles initialization and calls the LED controller:
+`Firmware/src/main.cpp` handles both input paths:
+
+- `GREEN` / `RED` / `YELLOW` from `Serial`
+- `CODEXLIGHT/1 GREEN` / `RED` / `YELLOW` from UDP
+
+After receiving a valid state, the firmware lights only the matching LED.
+
+## Wi-Fi Configuration
+
+Wireless UDP mode requires Wi-Fi credentials. Copy:
+
+```text
+Firmware\include\wifi_secrets.example.h
+```
+
+to:
+
+```text
+Firmware\include\wifi_secrets.h
+```
+
+Then fill in:
 
 ```cpp
-LedController leds;
-
-void setup() {
-  leds.begin();
-  leds.allOn();
-}
-
-void loop() {
-}
+#define CODEXLIGHT_WIFI_SSID "YourWiFiName"
+#define CODEXLIGHT_WIFI_PASSWORD "YourWiFiPassword"
 ```
 
-Current power-on behavior: the red, green, and yellow LEDs all turn on.
+`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial.
+
+## Verification
+
+Desktop script syntax check:
+
+```powershell
+python -m py_compile Bridge\codex_light_monitor.py
+```
+
+Firmware build:
+
+```powershell
+cd Firmware
+pio run
+```
 
 ## Hardware Files
 

@@ -21,3 +21,4 @@
 .vscode/
 **/.pio/
 **/.vscode/
+Firmware/include/wifi_secrets.h

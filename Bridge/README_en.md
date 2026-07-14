@@ -56,6 +56,73 @@ Send states to an ESP32 over serial:
 python Bridge\codex_light_monitor.py --serial COM5 --baud 115200
 ```
 
+## Win10 Tray Background Mode
+
+Double-click:
+
+```text
+Bridge\start_codex_light_tray.bat
+```
+
+It starts the PowerShell tray wrapper `CodexLightTray.ps1` with a hidden window, then runs `codex_light_monitor.py` in the background. On Win10, the tray icon appears in the folded notification area at the right side of the taskbar. Right-click the icon to:
+
+- open the log folder
+- restart the monitor script
+- exit the background program
+
+Logs are written to:
+
+```text
+Bridge\logs\codex_light_monitor.out.log
+Bridge\logs\codex_light_monitor.err.log
+```
+
+The startup script enables both wired serial and wireless UDP by default:
+
+```bat
+set "MONITOR_ARGS=--serial auto --baud 115200 --udp --udp-port 4210"
+```
+
+To use only wired serial:
+
+```bat
+set "MONITOR_ARGS=--serial auto --baud 115200"
+```
+
+To use only wireless UDP:
+
+```bat
+set "MONITOR_ARGS=--udp --udp-port 4210"
+```
+
+Auto mode prioritizes common ESP32, Espressif USB/JTAG, CP210x, CH340/CH341, FTDI, USB Serial, CDC, and UART devices. If the serial device is disconnected, the script periodically tries to reconnect.
+
+If auto mode picks the wrong device, replace `auto` with a fixed port, for example:
+
+```bat
+set "MONITOR_ARGS=--serial COM5 --baud 115200"
+```
+
+Console mode can also use automatic serial detection:
+
+```powershell
+python Bridge\codex_light_monitor.py --serial auto --baud 115200
+```
+
+Console mode can also use UDP broadcast:
+
+```powershell
+python Bridge\codex_light_monitor.py --udp --udp-port 4210
+```
+
+UDP output is one ASCII line, sent to `255.255.255.255:4210` by default. The current state is repeated every 2 seconds as a heartbeat:
+
+```text
+CODEXLIGHT/1 GREEN
+CODEXLIGHT/1 RED
+CODEXLIGHT/1 YELLOW
+```
+
 Serial output is one ASCII line per state change:
 
 ```text
@@ -65,6 +132,29 @@ YELLOW
 ```
 
 The firmware can read complete lines from `Serial` and call the matching LED control method.
+
+## ESP32 Wi-Fi Configuration
+
+Wireless UDP mode needs Wi-Fi credentials in the firmware. Copy:
+
+```text
+Firmware\include\wifi_secrets.example.h
+```
+
+to:
+
+```text
+Firmware\include\wifi_secrets.h
+```
+
+Then fill in:
+
+```cpp
+#define CODEXLIGHT_WIFI_SSID "YourWiFiName"
+#define CODEXLIGHT_WIFI_PASSWORD "YourWiFiPassword"
+```
+
+`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial.
 
 ## Useful Options
 
@@ -77,10 +167,14 @@ The firmware can read complete lines from `Serial` and call the matching LED con
 
 ## Notes
 
-Serial mode requires pyserial in the Python environment used to run the script:
+Serial mode and automatic serial detection require pyserial in the Python environment used to run the script:
 
 ```powershell
 pip install pyserial
 ```
 
 The default console monitoring mode has no third-party dependency.
+
+UDP mode has no third-party Python dependency.
+
+The tray wrapper uses the built-in Win10 PowerShell/.NET `NotifyIcon`, so no extra tray library is required.
