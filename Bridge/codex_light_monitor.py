@@ -13,8 +13,10 @@ pyserial must be installed in the Python environment running this script.
 from __future__ import annotations
 
 import argparse
+import secrets
 import json
 import os
+import re
 import socket
 import sqlite3
 import sys
@@ -27,6 +29,7 @@ from typing import Dict, Iterable, Optional
 STATE_GREEN = "GREEN"
 STATE_RED = "RED"
 STATE_YELLOW = "YELLOW"
+DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.local.json")
 
 
 @dataclass
@@ -51,6 +54,11 @@ class StateEmitter:
         udp_host: str,
         udp_port: int,
         udp_interval: float,
+        udp_token: str,
+        device_mac: str,
+        device_ip: str,
+        config_path: Path,
+        config: dict,
     ) -> None:
         self.repeat = repeat
         self.last_state: Optional[str] = None
@@ -64,8 +72,14 @@ class StateEmitter:
         self.udp_host = udp_host
         self.udp_port = udp_port
         self.udp_interval = udp_interval
+        self.udp_token = udp_token
+        self.device_mac = normalize_mac(device_mac)
+        self.device_ip = device_ip
+        self.config_path = config_path
+        self.config = config
         self.udp_socket = None
         self.last_udp_send = 0.0
+        self.last_udp_listen = 0.0
 
         if serial_port:
             try:
@@ -82,6 +96,12 @@ class StateEmitter:
         if self.udp_enabled:
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.udp_socket.setblocking(False)
+            try:
+                self.udp_socket.bind(("", self.udp_port))
+            except OSError as exc:
+                print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP listen disabled: {exc}", flush=True)
 
     def connect_serial(self, force: bool = False) -> None:
         if not self.serial_port or self.serial_module is None:
@@ -201,17 +221,70 @@ class StateEmitter:
                 self.close_serial()
 
         if self.udp_enabled:
+            self.listen_udp_discovery()
             self.emit_udp(state)
 
     def emit_udp(self, state: str) -> None:
         if self.udp_socket is None:
             return
-        payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
+        if self.udp_token:
+            payload = f"CODEXLIGHT/1 token={self.udp_token} {state}\n".encode("ascii")
+        else:
+            payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
         try:
-            self.udp_socket.sendto(payload, (self.udp_host, self.udp_port))
+            target = self.device_ip or self.udp_host
+            self.udp_socket.sendto(payload, (target, self.udp_port))
+            if not self.device_ip:
+                print(
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP using broadcast; pair device for unicast.",
+                    flush=True,
+                )
             self.last_udp_send = time.monotonic()
         except OSError as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
+
+    def listen_udp_discovery(self) -> None:
+        if self.udp_socket is None:
+            return
+
+        now = time.monotonic()
+        if now - self.last_udp_listen < 0.5:
+            return
+        self.last_udp_listen = now
+
+        while True:
+            try:
+                data, sender = self.udp_socket.recvfrom(512)
+            except BlockingIOError:
+                return
+            except OSError:
+                return
+
+            message = data.decode("ascii", errors="ignore").strip()
+            if not message.startswith("CODEXLIGHT/1 "):
+                continue
+
+            if " HELLO" not in message and " PAIR_HELLO" not in message:
+                continue
+
+            mac = extract_field(message, "mac")
+            if not mac:
+                continue
+
+            mac = normalize_mac(mac)
+            if self.device_mac and mac != self.device_mac:
+                continue
+
+            if sender[0] != self.device_ip:
+                self.device_ip = sender[0]
+                self.config["last_device_ip"] = self.device_ip
+                if mac:
+                    self.config["device_mac"] = mac
+                save_local_config(self.config_path, self.config)
+                print(
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP device {mac} at {self.device_ip}",
+                    flush=True,
+                )
 
 
 def default_sessions_root() -> Path:
@@ -220,6 +293,110 @@ def default_sessions_root() -> Path:
 
 def default_sqlite_path() -> Path:
     return Path.home() / ".codex" / "logs_2.sqlite"
+
+
+def normalize_mac(value: str) -> str:
+    cleaned = re.sub(r"[^0-9A-Fa-f]", "", value or "")
+    if len(cleaned) != 12:
+        return ""
+    cleaned = cleaned.upper()
+    return ":".join(cleaned[index : index + 2] for index in range(0, 12, 2))
+
+
+def extract_field(message: str, name: str) -> str:
+    match = re.search(rf"(?:^|\s){re.escape(name)}=([^\s]+)", message, flags=re.IGNORECASE)
+    return match.group(1) if match else ""
+
+
+def load_local_config(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def save_local_config(path: Path, config: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(config, handle, indent=2)
+        handle.write("\n")
+
+
+def pair_device(args: argparse.Namespace) -> int:
+    token = args.udp_token or secrets.token_hex(24)
+    config = load_local_config(args.config)
+    expected_mac = normalize_mac(args.device_mac or str(config.get("device_mac") or ""))
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.settimeout(1.0)
+    try:
+        sock.bind(("", args.udp_port))
+    except OSError:
+        pass
+
+    print(
+        "Pairing CodexLight. Put the ESP32 in pairing mode first "
+        "(send PAIR over serial, or use a fresh device with no token).",
+        flush=True,
+    )
+    if expected_mac:
+        print(f"Waiting for device MAC {expected_mac}", flush=True)
+
+    deadline = time.monotonic() + args.pair_timeout
+    paired = False
+    sender = None
+    device_mac = ""
+
+    while time.monotonic() < deadline:
+        try:
+            data, sender = sock.recvfrom(256)
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+
+        text = data.decode("ascii", errors="ignore").strip()
+        if not text.startswith("CODEXLIGHT/1 PAIR_HELLO") and not text.startswith("CODEXLIGHT/1 HELLO"):
+            continue
+
+        device_mac = normalize_mac(extract_field(text, "mac"))
+        if expected_mac and device_mac != expected_mac:
+            continue
+
+        payload = f"CODEXLIGHT/1 PAIR_SET token={token}\n".encode("ascii")
+        for target in {sender[0], args.udp_host}:
+            sock.sendto(payload, (target, args.udp_port))
+
+        try:
+            data, sender = sock.recvfrom(256)
+        except socket.timeout:
+            continue
+        text = data.decode("ascii", errors="ignore").strip()
+        ok_mac = normalize_mac(extract_field(text, "mac"))
+        if text.startswith("CODEXLIGHT/1 PAIR_OK") and (not expected_mac or ok_mac == expected_mac):
+            device_mac = ok_mac or device_mac
+            paired = True
+            break
+
+    if not paired:
+        print("Pairing timed out. Check Wi-Fi, UDP port, and pairing mode.", flush=True)
+        return 1
+
+    config["udp_token"] = token
+    config["udp_port"] = args.udp_port
+    if device_mac:
+        config["device_mac"] = device_mac
+    if sender:
+        config["last_device_ip"] = sender[0]
+    save_local_config(args.config, config)
+    print(f"Paired CodexLight device. Token saved to {args.config}", flush=True)
+    return 0
 
 
 def iter_jsonl_files(root: Path, max_age_days: int) -> Iterable[Path]:
@@ -432,6 +609,7 @@ def apply_idle_rules(ms: MonitorState, quiet_timeout: float, complete_grace: flo
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Monitor Codex logs for CodexLight.")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--sessions-root", type=Path, default=default_sessions_root())
     parser.add_argument("--sqlite", type=Path, default=default_sqlite_path())
     parser.add_argument("--poll", type=float, default=0.5, help="Polling interval in seconds.")
@@ -454,18 +632,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--udp", action="store_true", help="Broadcast states over UDP.")
     parser.add_argument("--udp-host", default="255.255.255.255", help="UDP host or broadcast address.")
     parser.add_argument("--udp-port", type=int, default=4210, help="UDP destination port.")
+    parser.add_argument("--udp-token", default="", help="UDP control token. Overrides config.local.json.")
+    parser.add_argument("--device-mac", default="", help="Expected ESP32 MAC address. Overrides config.local.json.")
     parser.add_argument(
         "--udp-interval",
         type=float,
         default=2.0,
         help="Seconds between repeated UDP state heartbeats.",
     )
+    parser.add_argument("--pair", action="store_true", help="Pair with an ESP32 in pairing mode and save token.")
+    parser.add_argument("--pair-timeout", type=float, default=30.0, help="Pairing timeout in seconds.")
     parser.add_argument("--repeat", action="store_true", help="Print/send repeated identical states.")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.pair:
+        return pair_device(args)
+
+    config = load_local_config(args.config)
+    udp_token = args.udp_token or str(config.get("udp_token") or "")
+    device_mac = normalize_mac(args.device_mac or str(config.get("device_mac") or ""))
+    device_ip = str(config.get("last_device_ip") or "")
+    if args.udp and not udp_token:
+        print(
+            "WARNING: UDP is running without a token. Pair the device with --pair for authenticated UDP.",
+            flush=True,
+        )
+
     emitter = StateEmitter(
         args.serial,
         args.baud,
@@ -474,6 +669,11 @@ def main() -> int:
         args.udp_host,
         args.udp_port,
         args.udp_interval,
+        udp_token,
+        device_mac,
+        device_ip,
+        args.config,
+        config,
     )
     ms = MonitorState()
     offsets: Dict[Path, int] = {}

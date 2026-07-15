@@ -41,6 +41,8 @@ Implemented capabilities:
 - Supports Win10 tray background mode.
 - Reconnects periodically after serial disconnects.
 - Repeats UDP heartbeat packets so the ESP32 can recover state after rebooting.
+- Supports UDP pairing, with the random token, ESP32 MAC, and recent IP saved in `Bridge/config.local.json`.
+- During normal operation, prefers unicast to the bound ESP32 IP; broadcast is used only for discovery/pairing fallback.
 
 ### ESP32 Firmware
 
@@ -64,6 +66,7 @@ Implemented capabilities:
 - Builds and works over USB serial even when Wi-Fi credentials are not configured.
 - Lights only the matching color after receiving a valid state.
 - Shows yellow after a long UDP heartbeat timeout to indicate that wireless connection may be lost.
+- Stores the UDP control token in NVS, so the token does not need to be hard-coded into firmware.
 
 ## Codex Log Sources
 
@@ -163,12 +166,20 @@ UDP is sent by default to:
 UDP protocol, one ASCII line:
 
 ```text
-CODEXLIGHT/1 GREEN
-CODEXLIGHT/1 RED
-CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 token=<paired-token> GREEN
+CODEXLIGHT/1 token=<paired-token> RED
+CODEXLIGHT/1 token=<paired-token> YELLOW
 ```
 
 The Bridge repeats the current state every 2 seconds as a wireless heartbeat.
+
+First-time pairing command:
+
+```powershell
+python Bridge\codex_light_monitor.py --pair --udp-port 4210
+```
+
+After pairing succeeds, the desktop token, ESP32 MAC, and recent IP are saved to `Bridge/config.local.json`, and the ESP32 token is saved to NVS. During normal operation, the ESP32 periodically broadcasts `HELLO mac=...`; the Bridge only accepts matching-MAC HELLO packets to refresh the IP, then prefers unicast control packets.
 
 ### Method 3: USB Serial and UDP Together
 
@@ -230,9 +241,9 @@ Firmware/src/main.cpp
 The firmware supports two inputs:
 
 - `Serial`: receives raw state commands `GREEN` / `RED` / `YELLOW`.
-- UDP: receives prefixed commands `CODEXLIGHT/1 GREEN` / `CODEXLIGHT/1 RED` / `CODEXLIGHT/1 YELLOW`.
+- UDP: receives token-prefixed commands `CODEXLIGHT/1 token=<paired-token> GREEN` / `RED` / `YELLOW`.
 
-The firmware also accepts raw state commands over UDP, but the prefixed protocol is recommended to avoid accidentally handling unrelated LAN UDP packets.
+Unpaired devices, or devices in pairing mode, accept `CODEXLIGHT/1 PAIR_SET token=<new-token>` and save the token. After pairing, UDP control packets must include the matching token.
 
 ## Wi-Fi Configuration
 

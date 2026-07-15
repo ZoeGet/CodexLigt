@@ -152,13 +152,21 @@ RED
 YELLOW
 ```
 
-UDP 输出默认发到 `255.255.255.255:4210`，并每 2 秒重复发送当前状态作为心跳：
+UDP 输出默认发到 `255.255.255.255:4210`，并每 2 秒重复发送当前状态作为心跳。配对后 UDP 包会带 token：
 
 ```text
-CODEXLIGHT/1 GREEN
-CODEXLIGHT/1 RED
-CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 token=<paired-token> GREEN
+CODEXLIGHT/1 token=<paired-token> RED
+CODEXLIGHT/1 token=<paired-token> YELLOW
 ```
+
+首次使用无线 UDP 时，先让 ESP32 进入配对窗口，然后运行：
+
+```powershell
+python Bridge\codex_light_monitor.py --pair --udp-port 4210
+```
+
+配对成功后 token 会保存在 ESP32 NVS，电脑端会把 token、ESP32 MAC 和最近 IP 保存到 `Bridge\config.local.json`，不需要写死在代码里。正常运行时，Bridge 优先向保存的 ESP32 IP 单播状态包，并只接受匹配 MAC 的 `HELLO` 来刷新 IP。
 
 串口模式需要安装 pyserial：
 
@@ -227,7 +235,7 @@ Firmware\include\wifi_secrets.h
 #define CODEXLIGHT_WIFI_PASSWORD "你的WiFi密码"
 ```
 
-`wifi_secrets.h` 已加入 `.gitignore`，不会提交到 GitHub。没有这个文件时，固件仍然可以编译并通过 USB 串口工作。
+`wifi_secrets.h` 已加入 `.gitignore`，不会提交到 GitHub。没有这个文件时，固件仍然可以编译并通过 USB 串口工作。UDP token 通过配对保存到 ESP32 NVS，不需要写入 `wifi_secrets.h`。
 
 ## 编译验证
 

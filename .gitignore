@@ -22,3 +22,4 @@
 **/.pio/
 **/.vscode/
 Firmware/include/wifi_secrets.h
+Bridge/config.local.json

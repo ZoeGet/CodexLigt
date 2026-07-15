@@ -77,7 +77,7 @@ Bridge\logs\codex_light_monitor.out.log
 Bridge\logs\codex_light_monitor.err.log
 ```
 
-默认启动脚本会同时启用有线串口和无线 UDP：
+默认启动脚本会同时启用有线串口和无线 UDP。UDP token 会在配对后从 `Bridge\config.local.json` 读取：
 
 ```bat
 set "MONITOR_ARGS=--serial auto --baud 115200 --udp --udp-port 4210"
@@ -118,10 +118,31 @@ python Bridge\codex_light_monitor.py --udp --udp-port 4210
 UDP 输出协议是一行 ASCII 文本，默认发到 `255.255.255.255:4210`，并且每 2 秒重复发送一次当前状态作为心跳：
 
 ```text
-CODEXLIGHT/1 GREEN
-CODEXLIGHT/1 RED
-CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 token=<paired-token> GREEN
+CODEXLIGHT/1 token=<paired-token> RED
+CODEXLIGHT/1 token=<paired-token> YELLOW
 ```
+
+### UDP 配对
+
+ESP32 的 UDP token 不写死在代码里。它会保存在 ESP32 NVS，电脑端会保存在 `Bridge\config.local.json`。该文件已被 `.gitignore` 忽略。
+
+首次配对流程：
+
+1. 确保 ESP32 已配置 Wi-Fi 并烧录固件。新设备没有 token 时，上电后会自动进入配对窗口；已有 token 的设备可通过串口发送 `PAIR` 进入 60 秒配对窗口，或发送 `CLEAR_TOKEN` 清除旧 token 并进入配对窗口。
+2. 在电脑端运行：
+
+```powershell
+python Bridge\codex_light_monitor.py --pair --udp-port 4210
+```
+
+3. 配对成功后，Bridge 会生成随机 token，并保存 ESP32 的 MAC、最近 IP 和 token 到：
+
+```text
+Bridge\config.local.json
+```
+
+后续正常运行 `--udp` 时会自动读取这个 token 和设备 MAC，优先向最近 IP 单播状态包。ESP32 会周期性广播 `HELLO mac=...`，Bridge 只接受匹配 MAC 的 HELLO 来刷新 IP。
 
 串口输出协议是一行一个 ASCII 状态，只在状态变化时发送：
 
@@ -154,7 +175,7 @@ Firmware\include\wifi_secrets.h
 #define CODEXLIGHT_WIFI_PASSWORD "你的WiFi密码"
 ```
 
-`wifi_secrets.h` 已加入 `.gitignore`，不会提交到 GitHub。没有这个文件时，固件仍然可以编译并通过 USB 串口工作。
+`wifi_secrets.h` 已加入 `.gitignore`，不会提交到 GitHub。没有这个文件时，固件仍然可以编译并通过 USB 串口工作。UDP 控制 token 不需要写入 `wifi_secrets.h`，它通过配对保存到 ESP32 NVS。
 
 ## 常用参数
 

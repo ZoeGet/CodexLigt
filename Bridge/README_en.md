@@ -77,7 +77,7 @@ Bridge\logs\codex_light_monitor.out.log
 Bridge\logs\codex_light_monitor.err.log
 ```
 
-The startup script enables both wired serial and wireless UDP by default:
+The startup script enables both wired serial and wireless UDP by default. The UDP token is loaded from `Bridge\config.local.json` after pairing:
 
 ```bat
 set "MONITOR_ARGS=--serial auto --baud 115200 --udp --udp-port 4210"
@@ -118,10 +118,31 @@ python Bridge\codex_light_monitor.py --udp --udp-port 4210
 UDP output is one ASCII line, sent to `255.255.255.255:4210` by default. The current state is repeated every 2 seconds as a heartbeat:
 
 ```text
-CODEXLIGHT/1 GREEN
-CODEXLIGHT/1 RED
-CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 token=<paired-token> GREEN
+CODEXLIGHT/1 token=<paired-token> RED
+CODEXLIGHT/1 token=<paired-token> YELLOW
 ```
+
+### UDP Pairing
+
+The ESP32 UDP token is not hard-coded. It is stored in ESP32 NVS, while the desktop Bridge stores it in `Bridge\config.local.json`. That file is ignored by Git.
+
+First-time pairing flow:
+
+1. Make sure the ESP32 has Wi-Fi configured and the firmware flashed. A fresh device with no token enters a pairing window on boot. A device with an existing token can enter a 60-second pairing window by receiving `PAIR` over serial, or clear the old token and enter pairing mode with `CLEAR_TOKEN`.
+2. Run on the desktop:
+
+```powershell
+python Bridge\codex_light_monitor.py --pair --udp-port 4210
+```
+
+3. After pairing succeeds, the Bridge generates a random token and saves the ESP32 MAC, recent IP, and token to:
+
+```text
+Bridge\config.local.json
+```
+
+Later `--udp` runs automatically load this token and device MAC, then prefer unicast state packets to the most recent IP. The ESP32 periodically broadcasts `HELLO mac=...`, and the Bridge only accepts HELLO packets from the matching MAC to refresh the IP.
 
 Serial output is one ASCII line per state change:
 
@@ -154,7 +175,7 @@ Then fill in:
 #define CODEXLIGHT_WIFI_PASSWORD "YourWiFiPassword"
 ```
 
-`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial.
+`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial. The UDP control token does not need to be written to `wifi_secrets.h`; it is stored in ESP32 NVS through pairing.
 
 ## Useful Options
 

@@ -152,13 +152,21 @@ RED
 YELLOW
 ```
 
-UDP output is sent to `255.255.255.255:4210` by default, and the current state is repeated every 2 seconds as a heartbeat:
+UDP output is sent to `255.255.255.255:4210` by default, and the current state is repeated every 2 seconds as a heartbeat. After pairing, UDP packets include a token:
 
 ```text
-CODEXLIGHT/1 GREEN
-CODEXLIGHT/1 RED
-CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 token=<paired-token> GREEN
+CODEXLIGHT/1 token=<paired-token> RED
+CODEXLIGHT/1 token=<paired-token> YELLOW
 ```
+
+For first-time wireless UDP use, put the ESP32 into pairing mode, then run:
+
+```powershell
+python Bridge\codex_light_monitor.py --pair --udp-port 4210
+```
+
+After pairing succeeds, the token is stored in ESP32 NVS, while the desktop stores the token, ESP32 MAC, and recent IP in `Bridge\config.local.json`; it does not need to be hard-coded. During normal operation, the Bridge prefers unicast state packets to the saved ESP32 IP and only accepts matching-MAC `HELLO` packets to refresh that IP.
 
 Serial mode requires pyserial:
 
@@ -227,7 +235,7 @@ Then fill in:
 #define CODEXLIGHT_WIFI_PASSWORD "YourWiFiPassword"
 ```
 
-`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial.
+`wifi_secrets.h` is ignored by Git and will not be committed to GitHub. Without this file, the firmware still builds and works over USB serial. The UDP token is stored in ESP32 NVS through pairing and does not need to be written to `wifi_secrets.h`.
 
 ## Verification
 
