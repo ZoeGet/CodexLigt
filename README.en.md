@@ -31,6 +31,7 @@ Both methods can be enabled at the same time, or you can choose only one.
 - Desktop Bridge supports automatic serial detection, UDP broadcast, and Win10 tray background mode.
 - Firmware has been verified with `pio run`.
 - Hardware schematic files are under `Hardware/Schematic/`.
+- 3D printable enclosure files are under `Hardware/Enclosure/`.
 
 
 ## Project Usage Framework
@@ -215,6 +216,9 @@ CodexLight/
 │       ├── main.cpp
 │       └── led.cpp
 └── Hardware/
+    ├── Enclosure/
+    │   ├── CodexLight_B.stl
+    │   └── CodexLight_T.stl
     └── Schematic/
         └── Schematic1.pdf
 ```
@@ -224,7 +228,7 @@ Directory overview:
 - `Bridge/`: desktop-side bridge program that monitors Codex logs and sends light states.
 - `Docs/`: project documentation directory.
 - `Firmware/`: ESP32-C3 firmware project.
-- `Hardware/`: schematic and future hardware files.
+- `Hardware/`: schematic, 3D printable enclosure, and future hardware files.
 
 ## Desktop Bridge
 
@@ -398,6 +402,8 @@ pio run
 Hardware files are located under `Hardware/`:
 
 - `Hardware/Schematic/Schematic1.pdf`: current schematic file.
+- `Hardware/Enclosure/CodexLight_B.stl`: 3D printable bottom enclosure file.
+- `Hardware/Enclosure/CodexLight_T.stl`: 3D printable top cover file.
 
 ## License
 
