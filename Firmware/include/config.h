@@ -10,7 +10,7 @@ constexpr uint8_t GREEN_LED_PIN = 6;
 constexpr uint8_t YELLOW_LED_PIN = 5;
 
 constexpr uint8_t LEDS_PER_CHANNEL = 1;
-constexpr uint8_t DEFAULT_BRIGHTNESS = 64;
+constexpr uint8_t DEFAULT_BRIGHTNESS = 25;
 
 constexpr unsigned long SERIAL_BAUD = 115200;
 constexpr uint16_t UDP_PORT = 4210;
@@ -31,8 +31,8 @@ constexpr const char* CONFIG_AP_PASSWORD = "123456789";
 constexpr const char* DEFAULT_TRANSPORT_MODE = "WIRED";
 
 // Enables firmware diagnostics on the USB serial port. Open the VS Code /
-// PlatformIO serial monitor at SERIAL_BAUD to inspect Wi-Fi, UDP, pairing,
-// token, and MAC status while debugging hardware setup.
+// PlatformIO serial monitor at SERIAL_BAUD to inspect transport, Wi-Fi, UDP,
+// configuration portal, and MAC status while debugging hardware setup.
 constexpr bool DEBUG_SERIAL = true;
 
 constexpr uint8_t RED_COLOR_R = 255;
@@ -44,7 +44,7 @@ constexpr uint8_t GREEN_COLOR_G = 255;
 constexpr uint8_t GREEN_COLOR_B = 0;
 
 constexpr uint8_t YELLOW_COLOR_R = 255;
-constexpr uint8_t YELLOW_COLOR_G = 180;
+constexpr uint8_t YELLOW_COLOR_G = 255;
 constexpr uint8_t YELLOW_COLOR_B = 0;
 
 }  // namespace CodexLightConfig

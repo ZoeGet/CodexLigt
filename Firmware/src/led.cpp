@@ -8,9 +8,9 @@ namespace {
 
 using namespace CodexLightConfig;
 
-Adafruit_NeoPixel redLed(LEDS_PER_CHANNEL, RED_LED_PIN, NEO_BRG + NEO_KHZ800);
-Adafruit_NeoPixel greenLed(LEDS_PER_CHANNEL, GREEN_LED_PIN, NEO_BRG + NEO_KHZ800);
-Adafruit_NeoPixel yellowLed(LEDS_PER_CHANNEL, YELLOW_LED_PIN, NEO_BRG + NEO_KHZ800);
+Adafruit_NeoPixel redLed(LEDS_PER_CHANNEL, RED_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel greenLed(LEDS_PER_CHANNEL, GREEN_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel yellowLed(LEDS_PER_CHANNEL, YELLOW_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 uint8_t brightness = DEFAULT_BRIGHTNESS;
 

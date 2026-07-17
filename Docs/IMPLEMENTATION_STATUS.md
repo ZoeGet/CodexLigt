@@ -1,325 +1,162 @@
 # CodexLight Implementation Status
 
-[中文](当前实现说明.md) | English
+[Documentation Index](README.md) | [Project Home](../README.en.md) | [中文实现说明](当前实现说明.md)
 
-This document is intended for future Codex conversations or developers taking over the project. It summarizes the features currently implemented in CodexLight, how they work, and the key technical decisions.
+This document is the technical handoff for the current CodexLight implementation. The root READMEs remain the primary user-facing source of truth.
 
-## Project Goal
-
-CodexLight is a Codex status light based on ESP32-C3 SuperMini. The desktop side monitors local Codex Desktop logs, derives the current Codex state, and sends that state to the ESP32. The ESP32 controls three independent WS2812B LEDs.
-
-Current state mapping:
-
-| Light | Meaning |
-| --- | --- |
-| Green | Codex is idle, completed, or has had no recent activity |
-| Red | Codex is thinking, writing, running tools, or taking action |
-| Yellow | Codex needs approval or is waiting for explicit user input |
-
-## Implemented Features
-
-### Desktop Bridge
-
-Implemented files:
+## Architecture
 
 ```text
+Codex Desktop logs
+        |
+        v
 Bridge/codex_light_monitor.py
-Bridge/CodexLightTray.ps1
-Bridge/start_codex_light_tray.bat
-Bridge/README.md
-Bridge/README_en.md
+        |
+        +-- USB CDC serial: GREEN / RED / YELLOW
+        +-- LAN UDP: CODEXLIGHT/1 <STATE>
+                         |
+                         v
+                  ESP32-C3 firmware
+                         |
+                         +-- GPIO5 yellow WS2812B
+                         +-- GPIO6 green WS2812B
+                         +-- GPIO7 red WS2812B
 ```
 
-Implemented capabilities:
+## Desktop Bridge
 
-- Monitors local Codex session JSONL logs.
-- Reads Codex SQLite diagnostic logs as completion hints.
-- Maps Codex activity to `GREEN` / `RED` / `YELLOW`.
-- Supports USB serial output.
-- Supports automatic serial scanning with `--serial auto`.
-- Supports UDP broadcast output with `--udp --udp-port 4210`.
-- Supports Win10 tray background mode.
-- Reconnects periodically after serial disconnects.
-- Repeats UDP heartbeat packets so the ESP32 can recover state after rebooting.
-- Supports UDP pairing, with the random token, ESP32 MAC, and recent IP saved in `Bridge/config.local.json`.
-- During normal operation, prefers unicast to the bound ESP32 IP; broadcast is used only for discovery/pairing fallback.
+Entry point: `Bridge/codex_light_monitor.py`
 
-### ESP32 Firmware
+Primary inputs:
 
-Implemented files:
+- `~/.codex/sessions/**/*.jsonl`
+- `~/.codex/logs_2.sqlite`
 
-```text
-Firmware/src/main.cpp
-Firmware/src/led.cpp
-Firmware/include/led.h
-Firmware/include/config.h
-Firmware/include/wifi_secrets.example.h
-Firmware/platformio.ini
-```
+State mapping:
 
-Implemented capabilities:
-
-- Uses Arduino Framework and FastLED.
-- Controls three independent WS2812B LEDs.
-- Receives state commands over USB serial.
-- Receives state commands over Wi-Fi UDP.
-- Builds and works over USB serial even when Wi-Fi credentials are not configured.
-- Lights only the matching color after receiving a valid state.
-- Shows yellow after a long UDP heartbeat timeout to indicate that wireless connection may be lost.
-- Stores the UDP control token in NVS, so the token does not need to be hard-coded into firmware.
-
-## Codex Log Sources
-
-The main state source verified locally is Codex session JSONL:
-
-```text
-C:\Users\<you>\.codex\sessions\YYYY\MM\DD\rollout-*.jsonl
-```
-
-Each line is one JSON object. Example key event:
-
-```json
-{"type":"event_msg","payload":{"type":"task_started","turn_id":"..."}}
-```
-
-The auxiliary log source is SQLite:
-
-```text
-C:\Users\<you>\.codex\logs_2.sqlite
-```
-
-SQLite is used only as a completion hint. For example, diagnostic logs can contain:
-
-```text
-app-server event: item/completed
-```
-
-Important: the local Codex Desktop logs inspected so far do not expose a confirmed stable single `task_finished` or `waiting_for_user` event. The Bridge therefore uses a combined strategy:
-
-- `task_started` switches to red.
-- Agent message/reasoning, tool calls, and tool outputs keep red active.
-- Tool payloads containing approval, permission, or user-input markers switch to yellow.
-- App-server completion hints or quiet timeout switch back to green.
-
-## Bridge State Rules
-
-Core script:
-
-```text
-Bridge/codex_light_monitor.py
-```
-
-Main rules:
-
-| Input event | Output state |
+| Event | State |
 | --- | --- |
-| `event_msg.payload.type == "task_started"` | `RED` |
-| `agent_message` / `agent_reasoning` | `RED` |
-| `response_item.payload.type == "function_call"` | `RED` |
-| Tool-call payload contains `require_escalated` / `sandbox_permissions` / `request_user_input` / `approval` / `permission` | `YELLOW` |
-| `response_item.payload.type == "function_call_output"` | usually remains `RED` |
-| SQLite `level == "ERROR"` | `RED` |
+| `task_started` | `RED` |
+| `agent_message`, `agent_reasoning`, `token_count` | `RED` |
+| `function_call`, `function_call_output` | `RED` |
+| Tool payload contains approval, permission, or user-input markers | `YELLOW` |
+| `task_complete` | `GREEN` |
 | `turn_aborted` | `GREEN` |
-| `app-server event: item/completed` after `--complete-grace` | `GREEN` |
-| No new activity after `--quiet-timeout` | `GREEN` |
 
-## Connection Methods
+An active turn does not become green because of `item/completed` or a quiet timeout. `quiet_timeout` is a fallback only when no active turn exists.
 
-### Method 1: USB Serial
+When serial opens, the Bridge waits two seconds, sends `MODE WIRED` for serial-only operation or `MODE AUTO` when UDP is also enabled, and sends the current state. Serial and UDP states repeat every two seconds as firmware heartbeats.
 
-Desktop command:
+UDP begins with broadcast discovery. After receiving a matching `HELLO`, the Bridge records the MAC and IP in the Git-ignored `Bridge/config.local.json` and prefers unicast.
 
-```powershell
-python Bridge\codex_light_monitor.py --serial auto --baud 115200
-```
+## Firmware
 
-Serial protocol, one ASCII state per line:
+Entry point: `Firmware/src/main.cpp`
+
+Modules:
+
+- `src/config_portal.cpp`: non-blocking WiFiManager provisioning
+- `src/led.cpp`: three independent Adafruit NeoPixel outputs
+- `include/config.h`: user-facing constants
+
+Each loop iteration:
+
+1. Parses USB serial commands.
+2. Calls WiFiManager `process()`.
+3. Maintains UDP listening and `HELLO` discovery packets.
+4. Selects an active transport from the configured mode and fresh heartbeats.
+5. Updates the connection animation or actual LED state.
+
+There is no infinite Wi-Fi wait and no `while (!Serial)`, so standalone and wired operation remain available without a network.
+
+## Transport Modes
+
+- `WIRED`: considers `lastWiredPacketMs` only.
+- `WIRELESS`: considers `lastWirelessPacketMs` only.
+- `AUTO`: accepts both and prefers a fresh wired heartbeat.
+
+The mode is stored in NVS using Preferences namespace `codexlight`, key `transport`. The source default is `WIRED`. A normal firmware upload does not erase NVS.
+
+## Heartbeat and LED Timing
+
+- Bridge heartbeat interval: 2 seconds
+- Firmware link timeout: 6 seconds
+- Disconnected blink half-period: 500 ms
+- Connection animation duration: 2 seconds
+- Connection animation half-period: 250 ms
+
+The LED driver uses `NEO_GRB + NEO_KHZ800`, matching the reference project. Every state transition writes all three independent LED outputs so inactive LEDs are explicitly cleared.
+
+## Wi-Fi Provisioning
+
+WiFiManager opens `CodexLight-XXXX` at `192.168.4.1` when no usable credentials exist. The current AP password is `123456789`.
+
+- `WIFI_CONFIG` calls `startConfigPortal()`.
+- `CLEAR_WIFI` resets saved settings, disconnects, and reopens the portal.
+
+The ESP32-C3 ultimately operates as a Wi-Fi station on the user's 2.4 GHz LAN. The phone-facing AP is a provisioning mechanism, not the permanent desktop-to-device network.
+
+## Protocol
+
+Serial commands:
 
 ```text
 GREEN
 RED
 YELLOW
+PING
+STATUS
+MODE WIRED
+MODE WIRELESS
+MODE AUTO
+WIFI_CONFIG
+CLEAR_WIFI
 ```
 
-Automatic serial scanning depends on pyserial:
+UDP states:
+
+```text
+CODEXLIGHT/1 GREEN
+CODEXLIGHT/1 RED
+CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 PING
+```
+
+Discovery:
+
+```text
+CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
+```
+
+## Removed Legacy Behavior
+
+The current implementation no longer uses:
+
+- Hard-coded `wifi_secrets.h` credentials
+- A custom blocking configuration page
+- UDP token pairing or `PAIR_SET`
+- FastLED global multi-controller refresh
+- Ordinary `item/completed` logs as a full task-completion signal
+
+## Verification
 
 ```powershell
-pip install pyserial
-```
+python -B -c "import ast,pathlib; ast.parse(pathlib.Path('Bridge/codex_light_monitor.py').read_text(encoding='utf-8')); print('OK')"
 
-Auto mode prioritizes common ESP32/USB serial devices, including Espressif, CP210x, CH340/CH341, FTDI, USB Serial, and CDC/UART devices.
-
-### Method 2: Wireless UDP
-
-Desktop command:
-
-```powershell
-python Bridge\codex_light_monitor.py --udp --udp-port 4210
-```
-
-UDP is sent by default to:
-
-```text
-255.255.255.255:4210
-```
-
-UDP protocol, one ASCII line:
-
-```text
-CODEXLIGHT/1 token=<paired-token> GREEN
-CODEXLIGHT/1 token=<paired-token> RED
-CODEXLIGHT/1 token=<paired-token> YELLOW
-```
-
-The Bridge repeats the current state every 2 seconds as a wireless heartbeat.
-
-First-time pairing command:
-
-```powershell
-python Bridge\codex_light_monitor.py --pair --udp-port 4210
-```
-
-After pairing succeeds, the desktop token, ESP32 MAC, and recent IP are saved to `Bridge/config.local.json`, and the ESP32 token is saved to NVS. During normal operation, the ESP32 periodically broadcasts `HELLO mac=...`; the Bridge only accepts matching-MAC HELLO packets to refresh the IP, then prefers unicast control packets.
-
-### Method 3: USB Serial and UDP Together
-
-Desktop command:
-
-```powershell
-python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210
-```
-
-The current Win10 tray startup script uses this mode by default.
-
-## Win10 Tray Background Mode
-
-Entry file:
-
-```text
-Bridge/start_codex_light_tray.bat
-```
-
-Double-clicking it starts:
-
-```text
-Bridge/CodexLightTray.ps1
-```
-
-Implementation details:
-
-- Uses Windows PowerShell and .NET `System.Windows.Forms.NotifyIcon` to create a tray icon.
-- Starts `codex_light_monitor.py` with a hidden window.
-- Right-clicking the tray icon can open the log folder, restart the monitor script, or exit the background program.
-- Does not depend on `pystray` or other third-party tray libraries.
-
-Default arguments in `start_codex_light_tray.bat`:
-
-```bat
-set "MONITOR_ARGS=--serial auto --baud 115200 --udp --udp-port 4210"
-```
-
-For UDP only:
-
-```bat
-set "MONITOR_ARGS=--udp --udp-port 4210"
-```
-
-For serial only:
-
-```bat
-set "MONITOR_ARGS=--serial auto --baud 115200"
-```
-
-## ESP32 Firmware Protocol
-
-Firmware entry point:
-
-```text
-Firmware/src/main.cpp
-```
-
-The firmware supports two inputs:
-
-- `Serial`: receives raw state commands `GREEN` / `RED` / `YELLOW`.
-- UDP: receives token-prefixed commands `CODEXLIGHT/1 token=<paired-token> GREEN` / `RED` / `YELLOW`.
-
-Unpaired devices, or devices in pairing mode, accept `CODEXLIGHT/1 PAIR_SET token=<new-token>` and save the token. After pairing, UDP control packets must include the matching token.
-
-## Wi-Fi Configuration
-
-Wi-Fi credentials are not committed to GitHub. Usage:
-
-1. Copy the example file:
-
-```text
-Firmware/include/wifi_secrets.example.h
-```
-
-2. Rename it to:
-
-```text
-Firmware/include/wifi_secrets.h
-```
-
-3. Fill in Wi-Fi credentials:
-
-```cpp
-#define CODEXLIGHT_WIFI_SSID "YourWiFiName"
-#define CODEXLIGHT_WIFI_PASSWORD "YourWiFiPassword"
-```
-
-`.gitignore` ignores:
-
-```text
-Firmware/include/wifi_secrets.h
-```
-
-Without `wifi_secrets.h`, the firmware still builds and works over USB serial.
-
-## Key Configuration
-
-File:
-
-```text
-Firmware/include/config.h
-```
-
-Current configuration:
-
-```cpp
-RED_LED_PIN = 7
-GREEN_LED_PIN = 6
-YELLOW_LED_PIN = 5
-LEDS_PER_CHANNEL = 1
-DEFAULT_BRIGHTNESS = 64
-SERIAL_BAUD = 115200
-UDP_PORT = 4210
-WIRELESS_TIMEOUT_MS = 10000
-```
-
-## Verification Commands
-
-Desktop script syntax check:
-
-```powershell
-python -m py_compile Bridge\codex_light_monitor.py
-```
-
-Firmware build:
-
-```powershell
 cd Firmware
-pio run
+pio run -j 1
 ```
 
-Most recent verification:
+The latest NeoPixel firmware build completed successfully. It used approximately 65.5% flash and 12.3% RAM; exact values may change with dependency versions.
 
-- `python -m py_compile Bridge\codex_light_monitor.py` passed.
-- `pio run` passed.
+## Maintenance Rules
 
-## Future Work
+- Keep root and subdirectory documentation synchronized in Chinese and English.
+- Do not commit `Bridge/config.local.json`, Wi-Fi credentials, or device-specific IP addresses.
+- Preserve non-blocking serial operation when modifying provisioning.
+- Treat `task_complete` and `turn_aborted` as the definitive green transitions.
+- Rebuild firmware after changing GPIOs, pixel order, or provisioning constants.
 
-- Add a firmware debug-output switch to confirm Wi-Fi and UDP packet status.
-- Add UDP device discovery: ESP32 broadcasts `HELLO`, and the Bridge records the ESP32 IP for both unicast and broadcast output.
-- Add a Bridge configuration file so users do not need to edit `.bat` directly.
-- If Codex Desktop later exposes stable `task_finished` / `waiting_for_user` events, replace the current quiet-timeout inference with those events.
+## License
+
+The project is distributed under the repository's [MIT License](../LICENSE). Third-party dependencies retain their own licenses.

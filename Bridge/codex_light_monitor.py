@@ -122,7 +122,8 @@ class StateEmitter:
             self.serial = self.serial_module.Serial(port, baudrate=self.baud, timeout=1)
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL connected {port}", flush=True)
             time.sleep(SERIAL_READY_DELAY_SECONDS)
-            self.serial.write(b"MODE WIRED\n")
+            mode_command = b"MODE AUTO\n" if self.udp_enabled else b"MODE WIRED\n"
+            self.serial.write(mode_command)
             self.serial.flush()
             if self.last_state:
                 self.serial.write((self.last_state + "\n").encode("ascii"))
