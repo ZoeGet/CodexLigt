@@ -15,7 +15,7 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
 - Bridge 每 2 秒发送一次状态心跳，固件在 6 秒未收到心跳后显示断开状态。
 - 建立电脑端连接时，绿灯闪烁 2 秒，然后显示真实 Codex 状态。
 - 支持 Windows 托盘后台运行。
-- 提供 PCB、原理图和 3D 打印外壳文件。
+- 提供 BOM、PCB、原理图和 3D 打印外壳文件。
 
 ## 状态定义
 
@@ -26,7 +26,7 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
 | `YELLOW` | 等待批准、权限确认或用户输入 | 黄灯 | GPIO5 |
 | 未连接 | 6 秒内未收到有效电脑端心跳 | 黄灯每秒闪烁一次 | GPIO5 |
 
-首次收到有效心跳时，GPIO6 绿灯会闪烁 2 秒作为连接提示。动画结束后，只点亮当前真实状态对应的灯。
+首次收到有效心跳时，GPIO6 绿灯会闪烁 2 秒作为连接提示。动画结束后，只点亮当前真实状态对应的灯。任务完成后，绿色状态会持续锁存，直到下一次任务开始、进入等待状态或连接断开。
 
 ## 硬件
 
@@ -49,8 +49,11 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
 
 三颗 WS2812B 是三路独立数据输入，不是串联灯带。固件与参考硬件一致，使用 `NEO_GRB + NEO_KHZ800`，颜色参数按标准 RGB 顺序传入。如果使用不同批次灯珠后颜色不正确，请修改 [Firmware/src/led.cpp](Firmware/src/led.cpp) 中的色序。
 
+当前全局亮度为 `25/255`，在 [Firmware/include/config.h](Firmware/include/config.h) 的 `DEFAULT_BRIGHTNESS` 中配置。
+
 硬件资料位于：
 
+- `Hardware/BOM/BOM.xlsx`：元器件物料清单
 - `Hardware/Schematic/Schematic1.pdf`：原理图
 - `Hardware/PCB/Source/CodexLight.epro2`：PCB 源工程
 - `Hardware/PCB/Gerber/CodexLight_PCB_Gerber.zip`：Gerber 制造文件
@@ -62,7 +65,11 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
 CodexLight/
 ├─ Bridge/                 # 电脑端日志监听、串口/UDP发送和Windows托盘程序
 ├─ Firmware/               # ESP32-C3 PlatformIO固件
-├─ Hardware/               # 原理图、PCB和外壳文件
+├─ Hardware/
+│  ├─ BOM/                 # 元器件物料清单
+│  ├─ Schematic/           # 电路原理图
+│  ├─ PCB/                 # PCB源工程和Gerber制造文件
+│  └─ Enclosure/           # 3D打印上下壳
 ├─ Docs/                   # 使用说明和实现细节
 ├─ README.md               # 中文说明
 ├─ README.en.md            # English documentation
@@ -210,6 +217,14 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200
 
 ### Wi-Fi 无线模式
 
+固件当前默认模式是 `WIRED`。第一次使用纯无线模式前，先通过 USB 串口发送并保存：
+
+```text
+MODE WIRELESS
+```
+
+也可以发送 `MODE AUTO`，让固件同时接受无线和后续可能出现的有线心跳。模式保存在 NVS，设置一次后重新上电仍然有效。
+
 ```powershell
 python Bridge\codex_light_monitor.py --udp --udp-port 4210
 ```
@@ -283,7 +298,7 @@ Bridge 监听 `~/.codex/sessions` 下的 Codex JSONL 会话日志：
 - 需要批准、权限或用户输入的工具调用：`YELLOW`
 - `task_complete` 或 `turn_aborted`：`GREEN`
 
-活动任务不会因为普通 `item/completed` 或短暂无日志而提前变绿。
+活动任务不会因为普通 `item/completed` 或短暂无日志而提前变绿。进入 `GREEN` 后，Bridge 会持续发送绿色心跳，固件保持绿灯，直到下一次状态或断开状态覆盖它。
 
 ## 故障排查
 

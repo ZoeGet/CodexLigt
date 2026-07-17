@@ -10,6 +10,7 @@ This directory contains the CodexLight schematic, PCB manufacturing files, and 3
 
 | Path | Description |
 | --- | --- |
+| `BOM/BOM.xlsx` | 元器件物料清单 / Bill of materials |
 | `Schematic/Schematic1.pdf` | 电路原理图 / Schematic PDF |
 | `PCB/Source/CodexLight.epro2` | 嘉立创 EDA PCB 源工程 / PCB source project |
 | `PCB/Gerber/CodexLight_PCB_Gerber.zip` | PCB Gerber 制造包 / Gerber fabrication package |

@@ -15,7 +15,7 @@ This is an independent community project and is not officially affiliated with o
 - A state heartbeat every 2 seconds and a 6-second firmware link timeout.
 - A two-second green connection animation before the actual Codex state is shown.
 - Optional Windows system tray operation.
-- PCB, schematic, Gerber, and 3D-printable enclosure files.
+- BOM, PCB, schematic, Gerber, and 3D-printable enclosure files.
 
 ## State Mapping
 
@@ -26,7 +26,7 @@ This is an independent community project and is not officially affiliated with o
 | `YELLOW` | Waiting for approval, permission, or explicit user input | Yellow | GPIO5 |
 | Disconnected | No valid desktop heartbeat for 6 seconds | Yellow, one-second blink cycle | GPIO5 |
 
-When the first valid heartbeat arrives, GPIO6 blinks for two seconds as a connection indication. After the animation, only the LED for the actual state remains on.
+When the first valid heartbeat arrives, GPIO6 blinks for two seconds as a connection indication. After the animation, only the LED for the actual state remains on. After a task completes, the green frame remains latched until another task starts, the Bridge enters a waiting state, or the connection is lost.
 
 ## Hardware
 
@@ -49,8 +49,11 @@ When the first valid heartbeat arrives, GPIO6 blinks for two seconds as a connec
 
 The LEDs use three independent data inputs; they are not a chained strip. The firmware matches the reference hardware with `NEO_GRB + NEO_KHZ800`, while color values are passed in standard RGB order. If another LED batch displays incorrect colors, change the pixel order in [Firmware/src/led.cpp](Firmware/src/led.cpp).
 
+The current global brightness is `25/255`, configured by `DEFAULT_BRIGHTNESS` in [Firmware/include/config.h](Firmware/include/config.h).
+
 Hardware files:
 
+- `Hardware/BOM/BOM.xlsx`: bill of materials
 - `Hardware/Schematic/Schematic1.pdf`: schematic
 - `Hardware/PCB/Source/CodexLight.epro2`: PCB source project
 - `Hardware/PCB/Gerber/CodexLight_PCB_Gerber.zip`: Gerber package
@@ -62,7 +65,11 @@ Hardware files:
 CodexLight/
 ├─ Bridge/                 # Desktop log monitor, serial/UDP sender, Windows tray app
 ├─ Firmware/               # ESP32-C3 PlatformIO firmware
-├─ Hardware/               # Schematic, PCB, and enclosure assets
+├─ Hardware/
+│  ├─ BOM/                 # Bill of materials
+│  ├─ Schematic/           # Circuit schematic
+│  ├─ PCB/                 # PCB source and Gerber fabrication files
+│  └─ Enclosure/           # 3D-printable top and bottom enclosure
 ├─ Docs/                   # Usage and implementation documentation
 ├─ README.md               # Chinese documentation
 ├─ README.en.md            # English documentation
@@ -208,6 +215,14 @@ Specify the COM port explicitly when multiple serial devices are connected.
 
 ### Wireless UDP
 
+The current firmware default is `WIRED`. Before the first UDP-only session, use USB serial to save:
+
+```text
+MODE WIRELESS
+```
+
+Alternatively, save `MODE AUTO` to accept wireless heartbeats and any later wired heartbeat. The mode is stored in NVS and survives reboot.
+
 ```powershell
 python Bridge\codex_light_monitor.py --udp --udp-port 4210
 ```
@@ -281,7 +296,7 @@ The Bridge monitors Codex JSONL session logs under `~/.codex/sessions`:
 - Tool calls requiring approval, permission, or user input: `YELLOW`
 - `task_complete` or `turn_aborted`: `GREEN`
 
-An active task does not turn green because of an ordinary `item/completed` event or a brief period without log output.
+An active task does not turn green because of an ordinary `item/completed` event or a brief period without log output. After entering `GREEN`, the Bridge keeps sending green heartbeats and the firmware keeps the green LED latched until another state or a disconnect replaces it.
 
 ## Troubleshooting
 
