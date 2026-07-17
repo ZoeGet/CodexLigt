@@ -1,6 +1,6 @@
 # CodexLight
 
-English | [简体中文](README.md) | [Usage Guide](USAGE.en.md)
+English | [简体中文](README.md) | [English Usage Guide](USAGE.en.md) | [中文使用说明](USAGE.md)
 
 CodexLight is an ESP32-C3 status light for Codex Desktop. A desktop Bridge reads local Codex session logs and sends the current state to an ESP32 over USB serial or UDP on the same LAN. The ESP32 drives three independent WS2812B LEDs for working, waiting, and completed states.
 

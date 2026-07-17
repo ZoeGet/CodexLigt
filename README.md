@@ -1,6 +1,6 @@
 # CodexLight
 
-[English](README.en.md) | 简体中文 | [使用说明](USAGE.md)
+[English](README.en.md) | 简体中文 | [中文使用说明](USAGE.md) | [English Usage Guide](USAGE.en.md)
 
 CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Bridge 读取本机 Codex 会话日志，将当前状态通过 USB 串口或同一局域网内的 UDP 发送给 ESP32；ESP32 控制三颗独立 WS2812B 灯珠显示工作、等待和完成状态。
 
