@@ -425,10 +425,12 @@ void maintainUdp() {
   upper.toUpperCase();
   if (upper == "PING" || upper == "CODEXLIGHT/1 PING") {
     lastWirelessPacketMs = now;
+    activeTransport = selectActiveTransport(now);
     sendUdpAck(remoteIp, remotePort);
   } else if (parseState(upper, state)) {
     wirelessState = state;
     lastWirelessPacketMs = now;
+    activeTransport = selectActiveTransport(now);
     sendUdpAck(remoteIp, remotePort);
   }
 }
