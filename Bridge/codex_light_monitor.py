@@ -79,6 +79,7 @@ class StateEmitter:
         self.config = config
         self.udp_socket = None
         self.last_udp_send = 0.0
+        self.last_udp_broadcast_send = 0.0
         self.last_serial_send = 0.0
         self.last_udp_listen = 0.0
         self.serial_mode = firmware_mode or ("AUTO" if self.udp_enabled else "WIRED")
@@ -155,6 +156,11 @@ class StateEmitter:
                 continue
             print(f"DEVICE {line}", flush=True)
             if line.startswith("WIFI_SET_OK "):
+                parts = line.split()
+                if len(parts) >= 3:
+                    self.device_ip = parts[-1]
+                    self.config["last_device_ip"] = self.device_ip
+                    save_local_config(self.config_path, self.config)
                 return True
             if line.startswith("WIFI_SET_ERROR "):
                 return False
@@ -358,14 +364,17 @@ class StateEmitter:
             return
         payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
         try:
-            target = self.device_ip or self.udp_host
-            self.udp_socket.sendto(payload, (target, self.udp_port))
-            if not self.device_ip:
+            now = time.monotonic()
+            if self.device_ip:
+                self.udp_socket.sendto(payload, (self.device_ip, self.udp_port))
+            if not self.device_ip or now - self.last_udp_broadcast_send >= self.udp_interval:
+                self.udp_socket.sendto(payload, (self.udp_host, self.udp_port))
+                self.last_udp_broadcast_send = now
                 print(
                     f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP using broadcast; pair device for unicast.",
                     flush=True,
                 )
-            self.last_udp_send = time.monotonic()
+            self.last_udp_send = now
         except OSError as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
 

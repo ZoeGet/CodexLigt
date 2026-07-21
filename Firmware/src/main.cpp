@@ -210,6 +210,13 @@ void saveMode() {
   preferences.end();
 }
 
+void saveMode(TransportMode mode) {
+  transportMode = mode;
+  saveMode();
+  lastWiredPacketMs = 0;
+  lastWirelessPacketMs = 0;
+}
+
 void loadMode() {
   preferences.begin("codexlight", false);
   const String saved = preferences.getString("transport", DEFAULT_TRANSPORT_MODE);
@@ -275,10 +282,7 @@ void handleControlCommand(String command) {
   upper.toUpperCase();
 
   if (upper.startsWith("MODE ")) {
-    transportMode = parseMode(upper.substring(5));
-    saveMode();
-    lastWiredPacketMs = 0;
-    lastWirelessPacketMs = 0;
+    saveMode(parseMode(upper.substring(5)));
     Serial.println(String("MODE_OK ") + modeName(transportMode));
     return;
   }
@@ -311,6 +315,7 @@ void handleControlCommand(String command) {
     }
     configPortal.configure(ssid, password);
     if (configPortal.wifiConnected()) {
+      saveMode(TransportMode::Wireless);
       Serial.println(String("WIFI_SET_OK ") + ssid + " " + WiFi.localIP().toString());
     } else {
       Serial.println(String("WIFI_SET_ERROR CONNECT_FAILED ") + ssid);
