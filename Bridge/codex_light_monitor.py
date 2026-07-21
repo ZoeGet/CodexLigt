@@ -78,6 +78,7 @@ class StateEmitter:
         self.config_path = config_path
         self.config = config
         self.udp_socket = None
+        self.udp_tx_socket = None
         self.last_udp_send = 0.0
         self.last_udp_broadcast_send = 0.0
         self.last_serial_send = 0.0
@@ -111,6 +112,8 @@ class StateEmitter:
             self.connect_serial(force=True)
 
         if self.udp_enabled:
+            self.udp_tx_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.udp_tx_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -360,23 +363,34 @@ class StateEmitter:
             self.emit_udp(state)
 
     def emit_udp(self, state: str) -> None:
-        if self.udp_socket is None:
+        if self.udp_tx_socket is None:
             return
         payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
         try:
             now = time.monotonic()
+            targets = []
             if self.device_ip:
-                self.udp_socket.sendto(payload, (self.device_ip, self.udp_port))
+                targets.append(self.device_ip)
             if not self.device_ip or now - self.last_udp_broadcast_send >= self.udp_interval:
-                self.udp_socket.sendto(payload, (self.udp_host, self.udp_port))
+                targets.extend(self.udp_broadcast_targets())
                 self.last_udp_broadcast_send = now
                 print(
-                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP using broadcast; pair device for unicast.",
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP targets {', '.join(unique_ordered(targets))}",
                     flush=True,
                 )
+            for target in unique_ordered(targets):
+                self.udp_tx_socket.sendto(payload, (target, self.udp_port))
             self.last_udp_send = now
         except OSError as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
+
+    def udp_broadcast_targets(self) -> list[str]:
+        targets = [self.udp_host, "255.255.255.255"]
+        if self.device_ip:
+            octets = self.device_ip.split(".")
+            if len(octets) == 4:
+                targets.append(".".join(octets[:3] + ["255"]))
+        return unique_ordered(targets)
 
     def listen_udp_discovery(self) -> None:
         if self.udp_socket is None:
@@ -441,6 +455,17 @@ def normalize_mac(value: str) -> str:
 def extract_field(message: str, name: str) -> str:
     match = re.search(rf"(?:^|\s){re.escape(name)}=([^\s]+)", message, flags=re.IGNORECASE)
     return match.group(1) if match else ""
+
+
+def unique_ordered(values: Iterable[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def load_local_config(path: Path) -> dict:
