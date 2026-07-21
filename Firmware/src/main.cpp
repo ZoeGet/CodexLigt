@@ -477,6 +477,9 @@ void setup() {
   Serial.println();
   Serial.println("CODEXLIGHT READY");
 
+  maintainLedController();
+  showFrame(LedFrame::Yellow, millis());
+
   configPortal.begin();
   Serial.println("WIFI_PROVISIONING USB_SERIAL");
   Serial.flush();
@@ -486,8 +489,6 @@ void setup() {
   } else {
     Serial.println("WIFI_USB_PROVISIONING READY FORMAT=WIFI_SET <ssid><TAB><password>");
   }
-
-  maintainLedController();
 
   loadMode();
   debugPrint(String("Boot mode=") + modeName(transportMode));
