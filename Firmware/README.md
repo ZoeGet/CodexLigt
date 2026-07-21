@@ -45,7 +45,7 @@ Edit `include/config.h`:
 | `YELLOW_LED_PIN` | `5` | Yellow LED data pin |
 | `GREEN_LED_PIN` | `6` | Green LED data pin |
 | `RED_LED_PIN` | `7` | Red LED data pin |
-| `DEFAULT_BRIGHTNESS` | `25` | NeoPixel brightness |
+| `DEFAULT_BRIGHTNESS` | `50` | NeoPixel brightness |
 | `SERIAL_BAUD` | `115200` | USB CDC baud rate |
 | `UDP_PORT` | `4210` | UDP listen/discovery port |
 | `LINK_TIMEOUT_MS` | `6000` | Desktop heartbeat timeout |
@@ -53,7 +53,7 @@ Edit `include/config.h`:
 | `WIFI_RECONNECT_INTERVAL_MS` | `10000` | Non-blocking saved Wi-Fi retry interval |
 | `WIFI_MAX_TX_POWER_QDBM` | `34` | ESP-IDF quarter-dBm units; 34 means 8.5 dBm |
 | `DEFAULT_TRANSPORT_MODE` | `AUTO` | Default mode when NVS has none |
-| `DEBUG_SERIAL` | `false` | Default debug logging; disabled to avoid standalone USB CDC startup stalls |
+| `DEBUG_SERIAL` | `false` | Default debug logging; keep disabled for standalone wireless operation |
 
 `CONFIG_AP_*` constants are retained only for compatibility. The main firmware does not start a SoftAP.
 

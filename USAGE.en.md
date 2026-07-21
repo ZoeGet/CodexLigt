@@ -207,7 +207,7 @@ The default UDP port is `4210`.
 - Confirm USB is connected and PlatformIO Monitor or another serial terminal is not using the COM port.
 - ESP32-C3 supports 2.4 GHz Wi-Fi only.
 - Check `Bridge/logs/wifi_setup.out.log` and `Bridge/logs/wifi_setup.err.log`.
-- If the target AP is visible with `auth=WPA2_PSK`, good RSSI, and repeated `reason=2`, some ESP32-C3 Super Mini boards are likely timing out during authentication. The current firmware defaults to `WIFI_MAX_TX_POWER_QDBM = 34`, or 8.5 dBm.
+- The current firmware defaults ESP32-C3 Wi-Fi transmit power to 8.5 dBm to improve connection stability on some development boards.
 
 ### Wireless mode does not respond
 
@@ -216,10 +216,6 @@ The default UDP port is `4210`.
 - If `ping 192.168.x.x` fails and `arp -a` does not show the device MAC, the device is not online on the LAN.
 - Delete `Bridge/config.local.json` to force rediscovery.
 - Allow Python through Windows Firewall for UDP `4210`.
-
-### Works only after opening a serial monitor
-
-Older firmware could block on `Serial.flush()` when no computer USB serial session was open. The current firmware removes that startup block and disables default debug serial output. Make sure the latest firmware is uploaded.
 
 ### Full factory reset
 

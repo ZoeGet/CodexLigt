@@ -10,7 +10,7 @@ constexpr uint8_t GREEN_LED_PIN = 6;
 constexpr uint8_t YELLOW_LED_PIN = 5;
 
 constexpr uint8_t LEDS_PER_CHANNEL = 1;
-constexpr uint8_t DEFAULT_BRIGHTNESS = 25;
+constexpr uint8_t DEFAULT_BRIGHTNESS = 50;
 
 constexpr unsigned long SERIAL_BAUD = 115200;
 constexpr uint16_t UDP_PORT = 4210;

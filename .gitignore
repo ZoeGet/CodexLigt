@@ -43,6 +43,8 @@ Bridge/__pycache__/
 wifi_secrets.h
 secrets.h
 credentials.*
+PRIVATE_NOTES.md
+Docs/PRIVATE*.md
 
 # Python and Windows local caches.
 .pytest_cache/

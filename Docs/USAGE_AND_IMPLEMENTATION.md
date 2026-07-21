@@ -141,8 +141,8 @@ Wi-Fi notes:
 - Credentials are stored only after the STA interface reaches `WL_CONNECTED`.
 - Saved Wi-Fi starts non-blockingly at boot, so LED diagnostics and the main loop continue even when the AP is unavailable.
 - Failed saved Wi-Fi connections keep credentials and retry every 10 seconds.
-- ESP32-C3 transmit power is limited to `WIFI_MAX_TX_POWER_QDBM = 34` (8.5 dBm). This avoids authentication timeouts seen on some Super Mini boards that can scan a 2.4 GHz WPA2 network but repeatedly disconnect with `reason=2`.
-- Default debug serial output is disabled and startup no longer calls `Serial.flush()`, so standalone power does not wait for a serial monitor.
+- ESP32-C3 transmit power is limited to `WIFI_MAX_TX_POWER_QDBM = 34` (8.5 dBm) to improve wireless stability on compact development boards.
+- Default debug serial output is disabled for standalone wireless operation.
 
 Startup flow:
 
@@ -195,11 +195,10 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 
 ## Troubleshooting
 
-- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi. If the target AP is visible with WPA2 and good RSSI but disconnects with `reason=2`, confirm firmware uses `WIFI_MAX_TX_POWER_QDBM = 34`.
+- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi, and confirm firmware uses `WIFI_MAX_TX_POWER_QDBM = 34`.
 - Wireless does not update: confirm same LAN, allow UDP 4210 through firewall, delete `Bridge/config.local.json` to rediscover.
 - Slow yellow blink: Wi-Fi is connected and the firmware is waiting for desktop heartbeats; start the tray.
 - Red double-blink: saved Wi-Fi exists but connection is still failing or reconnecting.
-- Works only after opening a serial monitor: upload current firmware; older builds could block on USB CDC serial startup.
 - Colors are wrong: verify `NEO_GRB`, DIN orientation, GPIO continuity, and 5 V power.
 
 ## Security and Local State

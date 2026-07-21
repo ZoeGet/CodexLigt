@@ -33,7 +33,7 @@ pio run -t upload --upload-port COM4
 pio device monitor --port COM4 --baud 115200
 ```
 
-PlatformIO Monitor、串口助手和 Bridge 不能同时占用同一个 COM 口。使用托盘前先关闭串口监视器。
+PlatformIO Monitor、其他串口程序和 Bridge 不能同时占用同一个 COM 口。使用托盘前先关闭串口监视器。
 
 ## USB Wi-Fi 配网
 
@@ -204,10 +204,10 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 
 ### Wi-Fi 配网失败
 
-- 确认 USB 已连接，且 PlatformIO Monitor/串口助手没有占用 COM 口。
+- 确认 USB 已连接，且 PlatformIO Monitor 或其他串口程序没有占用 COM 口。
 - ESP32-C3 只支持 2.4 GHz Wi-Fi。
 - 查看 `Bridge/logs/wifi_setup.out.log` 和 `Bridge/logs/wifi_setup.err.log`。
-- 如果日志能扫到目标网络、`auth=WPA2_PSK`、RSSI 正常但反复 `reason=2`，通常是部分 ESP32-C3 Super Mini 射频功率过高导致认证超时。当前固件默认 `WIFI_MAX_TX_POWER_QDBM = 34`，也就是 8.5 dBm。
+- 当前固件默认把 ESP32-C3 Wi-Fi 发射功率限制为 8.5 dBm，以提升部分开发板的连接稳定性。
 
 ### 纯无线没有响应
 
@@ -216,10 +216,6 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 - `ping 192.168.x.x` 不通且 `arp -a` 没有设备 MAC 时，设备没有在局域网在线。
 - 删除 `Bridge/config.local.json` 可让 Bridge 重新发现设备 IP。
 - Windows 防火墙需要允许 Python UDP 4210。
-
-### 打开串口助手后才正常
-
-旧固件在无电脑 USB 时可能被 `Serial.flush()` 阻塞。当前固件已移除此阻塞，并默认关闭调试串口输出。请确认已烧录最新固件。
 
 ### 恢复出厂状态
 

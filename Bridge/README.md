@@ -105,7 +105,7 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-por
 | `--udp-port 4210` | UDP 端口 |
 | `--firmware-mode AUTO` | 通过串口保存固件模式 |
 | `--serial-setup-only` | 串口只用于模式设置，确认后释放 |
-| `--reset-on-connect` | 打开串口后发送 ESP32 reset pulse，用于无线托盘启动时替代手动串口助手 |
+| `--reset-on-connect` | 打开串口后发送 ESP32 reset pulse，用于无线托盘启动时初始化设备 |
 | `--wifi-ssid` / `--wifi-password` | 一次性 USB Wi-Fi 配网 |
 | `--wifi-config path.json` | 从 JSON 文件读取 `{ "ssid": "...", "password": "..." }` |
 

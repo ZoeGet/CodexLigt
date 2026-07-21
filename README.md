@@ -12,8 +12,8 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。Windows 端 Br
 - 托盘程序提供 `Configure WiFi`，通过 USB 把 SSID 和密码发送给设备。
 - Wi-Fi 只在连接成功后写入 ESP32 NVS；错误密码不会覆盖旧配置。
 - 已保存的 Wi-Fi 会在开机后非阻塞连接，并在断线后持续重试。
-- ESP32-C3 Wi-Fi 发射功率默认限制为 8.5 dBm，避免部分 Super Mini 板认证超时。
-- 无电脑供电启动不会依赖 USB Serial；固件已移除启动阶段可能阻塞的 `Serial.flush()`。
+- ESP32-C3 Wi-Fi 发射功率默认限制为 8.5 dBm，以提升部分开发板的无线连接稳定性。
+- 无电脑供电启动不依赖 USB 串口，适合充电宝或电池供电的纯无线摆放。
 - 支持 `AUTO`、`WIRED`、`WIRELESS` 三种持久化通信模式。
 - `Bridge/start_codex_light_tray.vbs` 默认以无线模式隐藏启动，不保留 PowerShell 窗口。
 
@@ -98,7 +98,7 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。Windows 端 Br
 | WS2812B VCC | 5 V |
 | WS2812B GND | GND |
 
-三颗 WS2812B 使用三路独立数据输入，不是串联灯带。当前固件使用 `NEO_GRB + NEO_KHZ800`，全局亮度在 [Firmware/include/config.h](Firmware/include/config.h) 的 `DEFAULT_BRIGHTNESS` 中配置。
+三颗 WS2812B 使用三路独立数据输入，不是串联灯带。当前固件使用 `NEO_GRB + NEO_KHZ800`，默认亮度为 `DEFAULT_BRIGHTNESS = 50`，可在 [Firmware/include/config.h](Firmware/include/config.h) 中配置。
 
 ## 目录结构
 
@@ -114,14 +114,14 @@ CodexLight/
 └── USAGE.en.md    # English usage guide
 ```
 
-## 本地文件和隐私
+## 本地文件
 
 不要提交以下本机运行状态：
 
 - `Bridge/config.local.json`：本机发现的设备 MAC/IP。
 - `Bridge/logs/`：运行日志和 Wi-Fi 配网日志。
 - `.pio/`、`Firmware/.pio/`：PlatformIO 构建产物。
-- Wi-Fi 密码、私有 SSID、本机端口号和临时诊断文件。
+- Wi-Fi 密码、私有 SSID、本机端口号和临时文件。
 
 ## 验证
 

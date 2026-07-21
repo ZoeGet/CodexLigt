@@ -105,7 +105,7 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-por
 | `--udp-port 4210` | UDP port |
 | `--firmware-mode AUTO` | Persist firmware mode over serial |
 | `--serial-setup-only` | Use serial only for mode setup, then release it |
-| `--reset-on-connect` | Pulse ESP32 reset lines after opening serial; used by wireless tray startup instead of requiring a manual serial monitor |
+| `--reset-on-connect` | Pulse ESP32 reset lines after opening serial; used by wireless tray startup to initialize the device |
 | `--wifi-ssid` / `--wifi-password` | One-shot USB Wi-Fi provisioning |
 | `--wifi-config path.json` | Read `{ "ssid": "...", "password": "..." }` from JSON |
 

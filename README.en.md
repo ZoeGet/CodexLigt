@@ -12,8 +12,8 @@ This is an independent community project and is not officially affiliated with o
 - The tray app provides `Configure WiFi`, which sends SSID/password to the device over USB.
 - Wi-Fi credentials are saved to ESP32 NVS only after a successful connection. Bad credentials do not overwrite the previous working setup.
 - Saved Wi-Fi connects non-blockingly at boot and keeps retrying after disconnects.
-- ESP32-C3 Wi-Fi transmit power defaults to 8.5 dBm to avoid authentication timeouts on some Super Mini boards.
-- Standalone power no longer depends on USB Serial. The firmware removed startup `Serial.flush()` behavior that could block until a serial monitor opened.
+- ESP32-C3 Wi-Fi transmit power defaults to 8.5 dBm to improve wireless stability on some development boards.
+- Standalone power does not depend on USB serial, so the device can run from a power bank or battery supply in wireless mode.
 - Persistent `AUTO`, `WIRED`, and `WIRELESS` transport modes are supported.
 - `Bridge/start_codex_light_tray.vbs` starts the tray hidden and defaults to wireless mode.
 
@@ -98,7 +98,7 @@ Wiring:
 | WS2812B VCC | 5 V |
 | WS2812B GND | GND |
 
-The LEDs use three independent data inputs; they are not a chained strip. The firmware uses `NEO_GRB + NEO_KHZ800`. Global brightness is configured by `DEFAULT_BRIGHTNESS` in [Firmware/include/config.h](Firmware/include/config.h).
+The LEDs use three independent data inputs; they are not a chained strip. The firmware uses `NEO_GRB + NEO_KHZ800`. Default brightness is `DEFAULT_BRIGHTNESS = 50` and can be configured in [Firmware/include/config.h](Firmware/include/config.h).
 
 ## Repository Layout
 
@@ -114,14 +114,14 @@ CodexLight/
 └── USAGE.en.md    # English usage guide
 ```
 
-## Local Files and Privacy
+## Local Files
 
 Do not commit local runtime state:
 
 - `Bridge/config.local.json`: locally discovered device MAC/IP.
 - `Bridge/logs/`: runtime and Wi-Fi setup logs.
 - `.pio/`, `Firmware/.pio/`: PlatformIO build output.
-- Wi-Fi passwords, private SSIDs, local COM ports, or temporary diagnostic files.
+- Wi-Fi passwords, private SSIDs, local COM ports, or temporary files.
 
 ## Verification
 
