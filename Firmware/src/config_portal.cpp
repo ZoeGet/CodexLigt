@@ -1,6 +1,7 @@
 #include "config_portal.h"
 
 #include <WiFi.h>
+#include <esp_wifi.h>
 
 #include "config.h"
 #include "storage.h"
@@ -12,6 +13,29 @@ namespace {
 void logNetwork(const String& message) {
   if (DEBUG_SERIAL) {
     Serial.println(String("[WiFi] ") + message);
+  }
+}
+
+const char* encryptionName(wifi_auth_mode_t type) {
+  switch (type) {
+    case WIFI_AUTH_OPEN:
+      return "OPEN";
+    case WIFI_AUTH_WEP:
+      return "WEP";
+    case WIFI_AUTH_WPA_PSK:
+      return "WPA_PSK";
+    case WIFI_AUTH_WPA2_PSK:
+      return "WPA2_PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK:
+      return "WPA_WPA2_PSK";
+    case WIFI_AUTH_WPA2_ENTERPRISE:
+      return "WPA2_ENTERPRISE";
+    case WIFI_AUTH_WPA3_PSK:
+      return "WPA3_PSK";
+    case WIFI_AUTH_WPA2_WPA3_PSK:
+      return "WPA2_WPA3_PSK";
+    default:
+      return "UNKNOWN";
   }
 }
 
@@ -160,14 +184,66 @@ void ConfigPortal::buildApSsid() {
 }
 
 bool ConfigPortal::connectTo(const String& ssid, const String& password) {
+  WiFi.mode(WIFI_OFF);
+  delay(300);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  WiFi.disconnect(false, false);
+  WiFi.setAutoReconnect(false);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+  esp_wifi_set_max_tx_power(WIFI_MAX_TX_POWER_QDBM);
+  WiFi.disconnect(true, true);
+  delay(300);
   lastDisconnectReason_ = 0;
-  logNetwork("Connecting to " + ssid);
-  WiFi.begin(ssid.c_str(), password.c_str());
+  logNetwork("Connecting to " + ssid + " password_len=" + String(password.length()) +
+             " tx_power_qdbm=" + String(WIFI_MAX_TX_POWER_QDBM));
 
-  const unsigned long started = millis();
+  WiFi.begin(ssid.c_str(), password.c_str());
+  unsigned long started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < WIFI_CONNECT_TIMEOUT_MS) {
+    delay(100);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    currentSsid_ = WiFi.SSID();
+    logNetwork("Connected to " + WiFi.SSID() + " at " + WiFi.localIP().toString());
+    return true;
+  }
+
+  logNetwork("Normal connect failed; status=" + String(wifiStatusName()) +
+             " reason=" + String(lastDisconnectReason_));
+  WiFi.disconnect(false, false);
+  delay(300);
+
+  int bestNetwork = -1;
+  int bestRssi = -1000;
+  logNetwork("Scanning after normal connect failure");
+  const int networkCount = WiFi.scanNetworks(false, true);
+  for (int i = 0; i < networkCount; ++i) {
+    if (WiFi.SSID(i) != ssid) {
+      continue;
+    }
+    logNetwork("Found target ssid=" + WiFi.SSID(i) + " channel=" + String(WiFi.channel(i)) +
+               " rssi=" + String(WiFi.RSSI(i)) + " auth=" + encryptionName(WiFi.encryptionType(i)) +
+               " bssid=" + WiFi.BSSIDstr(i));
+    if (WiFi.RSSI(i) > bestRssi) {
+      bestRssi = WiFi.RSSI(i);
+      bestNetwork = i;
+    }
+  }
+
+  if (bestNetwork >= 0) {
+    const int32_t channel = WiFi.channel(bestNetwork);
+    WiFi.scanDelete();
+    logNetwork("Retrying with target channel=" + String(channel));
+    WiFi.begin(ssid.c_str(), password.c_str(), channel);
+  } else {
+    WiFi.scanDelete();
+    logNetwork("Target SSID not found in scan; trying normal connect anyway");
+    WiFi.begin(ssid.c_str(), password.c_str());
+  }
+
+  started = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - started < WIFI_CONNECT_TIMEOUT_MS) {
     delay(100);
   }

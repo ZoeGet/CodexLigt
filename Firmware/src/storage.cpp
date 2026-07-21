@@ -15,8 +15,8 @@ namespace WifiStorage {
 bool load(WifiCredentials& credentials) {
   Preferences preferences;
   preferences.begin(WIFI_NAMESPACE, true);
-  credentials.ssid = preferences.getString(SSID_KEY, "");
-  credentials.password = preferences.getString(PASSWORD_KEY, "");
+  credentials.ssid = preferences.isKey(SSID_KEY) ? preferences.getString(SSID_KEY, "") : "";
+  credentials.password = preferences.isKey(PASSWORD_KEY) ? preferences.getString(PASSWORD_KEY, "") : "";
   preferences.end();
   credentials.ssid.trim();
   return credentials.ssid.length() > 0;
