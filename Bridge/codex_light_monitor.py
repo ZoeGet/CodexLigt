@@ -81,6 +81,7 @@ class StateEmitter:
         self.last_udp_send = 0.0
         self.last_udp_broadcast_send = 0.0
         self.last_udp_subnet_probe = 0.0
+        self.last_udp_ack = 0.0
         self.last_serial_send = 0.0
         self.last_udp_listen = 0.0
         self.serial_mode = firmware_mode or ("AUTO" if self.udp_enabled else "WIRED")
@@ -374,14 +375,15 @@ class StateEmitter:
             targets = []
             if self.device_ip:
                 targets.append(self.device_ip)
-            if not self.device_ip or now - self.last_udp_broadcast_send >= self.udp_interval:
+            needs_discovery = not self.device_ip or now - self.last_udp_ack >= 10.0
+            if needs_discovery and now - self.last_udp_broadcast_send >= 30.0:
                 targets.extend(self.udp_broadcast_targets())
                 self.last_udp_broadcast_send = now
                 print(
                     f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP targets {', '.join(unique_ordered(targets))}",
                     flush=True,
                 )
-            if self.device_ip and now - self.last_udp_subnet_probe >= 10.0:
+            if self.device_ip and needs_discovery and now - self.last_udp_subnet_probe >= 30.0:
                 targets.extend(self.udp_subnet_probe_targets())
                 self.last_udp_subnet_probe = now
             for target in unique_ordered(targets):
@@ -449,10 +451,13 @@ class StateEmitter:
                     flush=True,
                 )
             if " ACK" in message:
-                print(
-                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP ack from {sender[0]} {message}",
-                    flush=True,
-                )
+                was_missing = now - self.last_udp_ack >= 10.0
+                self.last_udp_ack = now
+                if was_missing:
+                    print(
+                        f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP ack from {sender[0]} {message}",
+                        flush=True,
+                    )
 
 
 def default_sessions_root() -> Path:
