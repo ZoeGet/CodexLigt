@@ -78,7 +78,6 @@ class StateEmitter:
         self.config_path = config_path
         self.config = config
         self.udp_socket = None
-        self.udp_tx_socket = None
         self.last_udp_send = 0.0
         self.last_udp_broadcast_send = 0.0
         self.last_udp_subnet_probe = 0.0
@@ -89,6 +88,7 @@ class StateEmitter:
         self.serial_setup_complete = False
         self.serial_mode_confirmed = False
         self.last_serial_mode_send = 0.0
+        self.last_serial_status_send = 0.0
         self.mode_setup_enabled = mode_setup_enabled
 
         if serial_port:
@@ -113,8 +113,6 @@ class StateEmitter:
             self.connect_serial(force=True)
 
         if self.udp_enabled:
-            self.udp_tx_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.udp_tx_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -313,6 +311,10 @@ class StateEmitter:
                 self.serial.write(f"MODE {self.serial_mode}\n".encode("ascii"))
                 self.serial.flush()
                 self.last_serial_mode_send = now
+            elif self.udp_enabled and now - self.last_serial_status_send >= 5.0:
+                self.serial.write(b"STATUS\n")
+                self.serial.flush()
+                self.last_serial_status_send = now
         except Exception as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL read failed: {exc}", flush=True)
             self.close_serial()
@@ -364,7 +366,7 @@ class StateEmitter:
             self.emit_udp(state)
 
     def emit_udp(self, state: str) -> None:
-        if self.udp_tx_socket is None:
+        if self.udp_socket is None:
             return
         payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
         try:
@@ -383,7 +385,7 @@ class StateEmitter:
                 targets.extend(self.udp_subnet_probe_targets())
                 self.last_udp_subnet_probe = now
             for target in unique_ordered(targets):
-                self.udp_tx_socket.sendto(payload, (target, self.udp_port))
+                self.udp_socket.sendto(payload, (target, self.udp_port))
             self.last_udp_send = now
         except OSError as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
