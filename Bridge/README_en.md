@@ -11,6 +11,7 @@ The Bridge runs on the Windows computer hosting Codex Desktop. It reads local Co
 - Provides a Windows tray menu for Wi-Fi setup, mode switching, logs, monitor restart, and exit.
 - Configures device Wi-Fi over USB serial. The firmware no longer uses an ESP32 AP portal.
 - Stores discovered UDP device MAC/IP in `Bridge/config.local.json`.
+- When no computer USB is connected, the tray skips serial setup and continues UDP using the device's saved wireless mode.
 
 ## State Rules
 
@@ -36,7 +37,7 @@ Recommended hidden launcher. It defaults to `WIRELESS` mode:
 Bridge\start_codex_light_tray.vbs
 ```
 
-The legacy batch launcher is also available, but it may show a console window:
+The legacy batch launcher is also available, but it may briefly show a console window:
 
 ```text
 Bridge\start_codex_light_tray.bat
@@ -71,8 +72,6 @@ Bridge\logs\wifi_setup.out.log
 Bridge\logs\wifi_setup.err.log
 ```
 
-If the log shows `auth=WPA2_PSK`, normal RSSI, and repeated `reason=2`, some ESP32-C3 Super Mini boards are likely timing out during authentication. The firmware defaults Wi-Fi transmit power to `tx_power_qdbm=34` (8.5 dBm) to improve connection stability.
-
 Command-line provisioning:
 
 ```powershell
@@ -81,29 +80,19 @@ python Bridge\codex_light_monitor.py --serial auto --wifi-ssid "YourWifi" --wifi
 
 ## Run Modes
 
-Wired:
-
-```powershell
-python Bridge\codex_light_monitor.py --serial auto --baud 115200
-```
-
-Wireless:
-
-```powershell
-python Bridge\codex_light_monitor.py --udp --udp-port 4210
-```
-
-AUTO:
-
-```powershell
-python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210 --firmware-mode AUTO
-```
-
 | Mode | Bridge behavior |
 | --- | --- |
 | `WIRED` | Opens serial and sends states only over USB |
-| `WIRELESS` | Sends states over UDP only; USB may be used once to save `MODE WIRELESS` and then released |
+| `WIRELESS` | Sends states over UDP; if USB exists, serial saves `MODE WIRELESS` and is released; if USB is absent, the saved firmware mode is used |
 | `AUTO` | Enables serial and UDP; firmware prefers a fresh serial heartbeat |
+
+Manual commands:
+
+```powershell
+python Bridge\codex_light_monitor.py --serial auto --baud 115200
+python Bridge\codex_light_monitor.py --udp --udp-port 4210
+python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210 --firmware-mode AUTO
+```
 
 ## Common Options
 
@@ -116,14 +105,9 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-por
 | `--udp-port 4210` | UDP port |
 | `--firmware-mode AUTO` | Persist firmware mode over serial |
 | `--serial-setup-only` | Use serial only for mode setup, then release it |
+| `--reset-on-connect` | Pulse ESP32 reset lines after opening serial; used by wireless tray startup instead of requiring a manual serial monitor |
 | `--wifi-ssid` / `--wifi-password` | One-shot USB Wi-Fi provisioning |
 | `--wifi-config path.json` | Read `{ "ssid": "...", "password": "..." }` from JSON |
-
-Show all options:
-
-```powershell
-python Bridge\codex_light_monitor.py --help
-```
 
 ## Logs and Local Files
 

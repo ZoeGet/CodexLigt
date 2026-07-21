@@ -2,8 +2,8 @@
 
 Project header files / 项目头文件：
 
-- `config.h`: GPIO assignments, brightness, serial baud, UDP port, timeouts, default transport mode, and LED colors. AP constants are retained for compatibility but the main firmware does not start an AP.
-- `config_portal.h`: STA Wi-Fi connection and USB provisioning wrapper. The name is kept for compatibility with older code.
+- `config.h`: GPIO assignments, brightness, serial baud, UDP port, timeouts, default transport mode, standalone diagnostic behavior, and ESP32-C3 Wi-Fi transmit power.
+- `config_portal.h`: STA Wi-Fi connection and USB provisioning wrapper. The name is kept for compatibility with older code; AP provisioning is no longer used.
 - `storage.h`: Preferences storage for Wi-Fi SSID/password.
 - `led.h`: three-channel LED controller interface.
 

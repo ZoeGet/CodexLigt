@@ -15,11 +15,14 @@ pio run
 
 Hardware validation should cover:
 
-- USB serial commands: `STATUS`, `MODE ...`, `WIFI_SET`, `CLEAR_WIFI`.
+- USB serial commands: `STATUS`, `MODE ...`, `WIFI_SET`, `CLEAR_WIFI`, `LED_TEST ...`.
 - STA Wi-Fi connection after USB provisioning.
-- UDP discovery and heartbeat timeout.
+- Non-blocking saved Wi-Fi startup without a serial monitor attached.
+- Power bank or battery-powered wireless operation.
+- UDP discovery, ACKs, and heartbeat timeout.
 - AUTO/WIRED/WIRELESS mode switching.
 - Two-second green connection animation.
+- Standalone LED diagnostics: alternating red/yellow, red double-blink, slow yellow blink.
 - Exclusive red/green/yellow LED output.
 
-硬件验证应覆盖 USB 串口命令、USB 配网后的 STA 联网、UDP 发现和心跳超时、三种模式切换、2 秒绿灯连接动画，以及红/绿/黄三灯互斥显示。
+硬件验证应覆盖 USB 串口命令、USB 配网后的 STA 联网、无串口的非阻塞启动、充电宝或电池供电的纯无线运行、UDP 发现和 ACK、三种模式切换、绿灯连接动画、无串口诊断灯码，以及红/绿/黄三灯互斥显示。

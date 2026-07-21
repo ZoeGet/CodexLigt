@@ -8,9 +8,9 @@ This document combines the operating guide and technical implementation referenc
 
 | LED | Data pin | State |
 | --- | --- | --- |
-| Yellow WS2812B | GPIO5 | Disconnected or waiting for approval |
+| Yellow WS2812B | GPIO5 | Disconnected, waiting, or diagnostics |
 | Green WS2812B | GPIO6 | Connection animation or task completed |
-| Red WS2812B | GPIO7 | Codex is working |
+| Red WS2812B | GPIO7 | Codex is working or Wi-Fi reconnect diagnostics |
 
 Each WS2812B uses an independent DIN. Connect VCC to a stable 5 V supply and share ground with the ESP32-C3.
 
@@ -85,13 +85,7 @@ The tray hosts these user actions:
 - `Restart monitor`: restarts `codex_light_monitor.py`.
 - `Exit`: stops the tray app.
 
-The legacy batch file remains available for explicit mode startup:
-
-```powershell
-Bridge\start_codex_light_tray.bat auto
-Bridge\start_codex_light_tray.bat wired
-Bridge\start_codex_light_tray.bat wireless
-```
+The wireless tray path opens serial only for setup when USB exists, sends a reset pulse and `MODE WIRELESS`, then releases the port. If no USB serial port exists, it logs `SERIAL setup skipped; using saved firmware mode.` and continues over UDP.
 
 ## Architecture
 
@@ -102,12 +96,13 @@ Codex Desktop logs
 Bridge/codex_light_monitor.py
         |
         +-- USB CDC serial: GREEN / RED / YELLOW / MODE / WIFI_SET
-        +-- LAN UDP: CODEXLIGHT/1 <STATE>
+        +-- LAN UDP: CODEXLIGHT/1 <STATE> and CODEXLIGHT/1 PING
                          |
                          v
                   ESP32-C3 firmware
                          |
                          +-- Preferences: wifi ssid/password, transport mode
+                         +-- non-blocking saved Wi-Fi reconnect
                          +-- GPIO5 yellow WS2812B
                          +-- GPIO6 green WS2812B
                          +-- GPIO7 red WS2812B
@@ -134,31 +129,35 @@ The tray Wi-Fi setup path pauses the monitor, runs a one-shot `--wifi-config` ch
 
 Main files:
 
-- `Firmware/src/main.cpp`: serial command parser, UDP heartbeat, transport selection, LED state machine.
-- `Firmware/src/config_portal.cpp`: STA Wi-Fi connection and USB provisioning wrapper. The name is retained for compatibility with older code.
+- `Firmware/src/main.cpp`: serial command parser, UDP heartbeat, transport selection, LED state machine, diagnostics.
+- `Firmware/src/config_portal.cpp`: STA Wi-Fi connection, USB provisioning wrapper, non-blocking saved Wi-Fi reconnect.
 - `Firmware/src/storage.cpp`: Preferences storage for Wi-Fi credentials.
 - `Firmware/src/led.cpp`: three independent NeoPixel outputs.
 - `Firmware/include/config.h`: GPIO, brightness, timeouts, UDP port, default mode, and ESP32-C3 Wi-Fi transmit power.
 
-Wi-Fi connection notes:
+Wi-Fi notes:
 
-- The firmware uses USB serial provisioning only; SoftAP provisioning is disabled.
+- USB serial is the only provisioning method.
 - Credentials are stored only after the STA interface reaches `WL_CONNECTED`.
+- Saved Wi-Fi starts non-blockingly at boot, so LED diagnostics and the main loop continue even when the AP is unavailable.
+- Failed saved Wi-Fi connections keep credentials and retry every 10 seconds.
 - ESP32-C3 transmit power is limited to `WIFI_MAX_TX_POWER_QDBM = 34` (8.5 dBm). This avoids authentication timeouts seen on some Super Mini boards that can scan a 2.4 GHz WPA2 network but repeatedly disconnect with `reason=2`.
+- Default debug serial output is disabled and startup no longer calls `Serial.flush()`, so standalone power does not wait for a serial monitor.
 
 Startup flow:
 
 ```text
 setup
+  -> initialize LEDs and show startup yellow
   -> read saved Wi-Fi credentials
-  -> if present, try STA connection for 15 seconds
-  -> if connected, start normal runtime
-  -> if missing or failed, turn Wi-Fi off and wait for USB WIFI_SET
+  -> if present, start STA connection without blocking the main loop
+  -> load persisted transport mode
 loop
-  -> handle serial commands
+  -> continue saved Wi-Fi reconnect attempts when needed
+  -> handle USB serial commands when available
   -> maintain UDP when Wi-Fi is connected
   -> select active transport
-  -> render LED state
+  -> render LED state or standalone diagnostics
 ```
 
 ## Protocol
@@ -177,22 +176,30 @@ MODE AUTO
 WIFI_CONFIG
 WIFI_SET <ssid><TAB><password>
 CLEAR_WIFI
+LED_TEST RED
+LED_TEST GREEN
+LED_TEST YELLOW
+LED_TEST OFF
 ```
 
-UDP states and discovery:
+UDP states, pings, ACKs, and discovery:
 
 ```text
 CODEXLIGHT/1 GREEN
 CODEXLIGHT/1 RED
 CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 PING
+CODEXLIGHT/1 ACK mac=<MAC> mode=<MODE> active=<TRANSPORT> state=<STATE>
 CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 ```
 
 ## Troubleshooting
 
-- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi. If the target AP is visible with WPA2 and good RSSI but disconnects with `reason=2`, confirm the firmware log includes `tx_power_qdbm=34`.
+- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi. If the target AP is visible with WPA2 and good RSSI but disconnects with `reason=2`, confirm firmware uses `WIFI_MAX_TX_POWER_QDBM = 34`.
 - Wireless does not update: confirm same LAN, allow UDP 4210 through firewall, delete `Bridge/config.local.json` to rediscover.
-- Yellow keeps blinking: Bridge is not running, mode is wrong, serial is occupied, or UDP discovery cannot reach the device.
+- Slow yellow blink: Wi-Fi is connected and the firmware is waiting for desktop heartbeats; start the tray.
+- Red double-blink: saved Wi-Fi exists but connection is still failing or reconnecting.
+- Works only after opening a serial monitor: upload current firmware; older builds could block on USB CDC serial startup.
 - Colors are wrong: verify `NEO_GRB`, DIN orientation, GPIO continuity, and 5 V power.
 
 ## Security and Local State

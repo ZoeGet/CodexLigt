@@ -2,7 +2,7 @@
 
 [English](USAGE.en.md) | 简体中文 | [返回项目主页](README.md)
 
-本文说明 CodexLight 的固件烧录、USB Wi-Fi 配网、有线/无线/AUTO 模式、Windows 托盘、串口命令、UDP 协议、排障和验证流程。
+本文说明 CodexLight 的固件烧录、USB Wi-Fi 配网、有线/无线/AUTO 模式、Windows 托盘、串口命令、UDP 协议、纯无线供电和排障流程。
 
 ## 准备
 
@@ -33,41 +33,21 @@ pio run -t upload --upload-port COM4
 pio device monitor --port COM4 --baud 115200
 ```
 
-没有 Wi-Fi 配置时，正常输出类似：
-
-```text
-CODEXLIGHT READY
-WIFI_PROVISIONING USB_SERIAL
-[WiFi] No saved Wi-Fi credentials; waiting for USB provisioning
-WIFI_USB_PROVISIONING READY FORMAT=WIFI_SET <ssid><TAB><password>
-STATUS mode=AUTO active=NONE wifi=DISCONNECTED ... network=USB_PROVISIONING radio=OFF
-```
-
-已经配好 Wi-Fi 时，正常输出类似：
-
-```text
-CODEXLIGHT READY
-WIFI_PROVISIONING USB_SERIAL
-[WiFi] Connecting to YourWifi
-WIFI_CONNECTED YourWifi 192.168.x.x
-STATUS mode=AUTO active=NONE wifi=CONNECTED ... radio=STA ip=192.168.x.x
-```
-
-PlatformIO Monitor 和 Bridge 不能同时占用同一个 COM 口。使用 Bridge 前先关闭串口监视器。
+PlatformIO Monitor、串口助手和 Bridge 不能同时占用同一个 COM 口。使用托盘前先关闭串口监视器。
 
 ## USB Wi-Fi 配网
 
-现在不再使用手机连接 ESP32 热点配网。推荐使用托盘菜单：
+当前固件不再开启 ESP32 热点配网，推荐使用托盘：
 
-1. 用 USB 连接电脑和 CodexLight。
-2. 启动托盘：双击 `Bridge\start_codex_light_tray.vbs`。该启动器默认进入 `WIRELESS` 模式。
+1. 用 USB 数据线连接电脑和 CodexLight。
+2. 双击 `Bridge\start_codex_light_tray.vbs` 启动托盘。默认是 `WIRELESS` 模式。
 3. 右键托盘图标，选择 `Configure WiFi`。
-4. 输入路由器 SSID 和密码。
+4. 输入 2.4 GHz 路由器 SSID 和密码。
 5. 点击 `Save`。
 
-成功后会显示 `WiFi saved and connected.`，设备会把配置保存到 ESP32 NVS。之后断电重启会自动连接。
+成功后会显示 `WiFi saved and connected.`。设备只会在连接成功后保存 Wi-Fi；密码错误、SSID 不存在或连接超时不会覆盖旧配置。
 
-也可以用命令行配网：
+命令行配网：
 
 ```powershell
 python Bridge\codex_light_monitor.py --serial auto --wifi-ssid "YourWifi" --wifi-password "YourPassword"
@@ -79,14 +59,12 @@ python Bridge\codex_light_monitor.py --serial auto --wifi-ssid "YourWifi" --wifi
 DEVICE WIFI_SET_OK YourWifi 192.168.x.x
 ```
 
-失败时查看：
+失败日志：
 
 ```text
 Bridge\logs\wifi_setup.out.log
 Bridge\logs\wifi_setup.err.log
 ```
-
-固件只会在连接成功后保存 Wi-Fi。密码错误、SSID 不存在或连接超时不会覆盖旧配置。
 
 ## Windows 托盘
 
@@ -96,15 +74,15 @@ Bridge\logs\wifi_setup.err.log
 Bridge\start_codex_light_tray.vbs
 ```
 
-这个启动器会隐藏 PowerShell 窗口，并默认以 `WIRELESS` 模式启动。不要直接关闭托盘程序所属的 PowerShell 进程；退出时右键托盘图标选择 `Exit`。
+这个启动器会隐藏 PowerShell 窗口，并默认进入 `WIRELESS` 模式。退出时请右键托盘图标选择 `Exit`。
 
-旧批处理启动器仍可用，但可能短暂显示控制台窗口：
+旧批处理启动器仍可用：
 
 ```text
 Bridge\start_codex_light_tray.bat
 ```
 
-也可以指定启动模式：
+可指定模式：
 
 ```powershell
 Bridge\start_codex_light_tray.bat auto
@@ -112,7 +90,7 @@ Bridge\start_codex_light_tray.bat wired
 Bridge\start_codex_light_tray.bat wireless
 ```
 
-托盘右键菜单提供：
+托盘菜单：
 
 - `Configure WiFi`：通过 USB 配网。
 - `Connection mode`：切换 `Auto`、`Wired only`、`Wireless only`。
@@ -122,21 +100,42 @@ Bridge\start_codex_light_tray.bat wireless
 
 ## 有线、无线和 AUTO 模式
 
-| 模式 | 行为 | 操作建议 |
+| 模式 | 行为 | 使用建议 |
 | --- | --- | --- |
-| `AUTO` | Bridge 同时通过 USB 和 UDP 发送；固件优先使用 6 秒内新鲜的 USB 心跳，USB 断开后可切到 UDP | 日常推荐 |
-| `WIRED` | 只使用 USB 串口 | 调试、烧录后验证、Wi-Fi 不稳定时使用 |
-| `WIRELESS` | 只使用 Wi-Fi UDP；USB 只用于保存一次模式或配网 | 设备要脱离电脑摆放时使用 |
-
-切换方式：右键托盘图标，进入 `Connection mode`，选择对应模式。Bridge 会自动重启内部监控进程，并通过串口发送：
-
-```text
-MODE AUTO
-MODE WIRED
-MODE WIRELESS
-```
+| `AUTO` | Bridge 同时发 USB 和 UDP；固件优先使用 6 秒内新鲜的 USB 心跳，USB 断开后可切到 UDP | 日常调试或混合连接 |
+| `WIRED` | 只使用 USB 串口 | 烧录后验证、串口调试、Wi-Fi 不稳定时 |
+| `WIRELESS` | 只使用 Wi-Fi UDP；USB 只用于配网或保存模式后释放 | 设备脱离电脑摆放时推荐 |
 
 模式会保存到 ESP32 NVS，普通固件上传不会清除。
+
+## 纯无线使用流程
+
+1. 插电脑 USB，使用 `Configure WiFi` 成功保存 Wi-Fi。
+2. 右键托盘，选择 `Connection mode` -> `Wireless only`。
+3. 关闭托盘。
+4. 断开电脑 USB，使用充电宝或锂电池升压 5 V 供电。
+5. 等 20 到 60 秒，观察灯码。
+6. 打开托盘。
+7. 如果日志出现 `UDP ack ... active=WIRELESS state=...`，纯无线已可用。
+
+无电脑 USB 时，日志中出现下面两行是正常的：
+
+```text
+SERIAL no matching serial port
+SERIAL setup skipped; using saved firmware mode.
+```
+
+## LED 行为和诊断灯码
+
+| 灯光 | 含义 |
+| --- | --- |
+| 绿灯常亮 | 空闲、任务完成或任务中止 |
+| 红灯常亮 | Codex 正在思考、回复或运行工具 |
+| 黄灯常亮 | 等待审批、权限或用户输入 |
+| 绿灯闪烁 2 秒 | 首次建立电脑连接 |
+| 黄灯慢闪 | Wi-Fi 已连接，但未收到电脑 UDP/USB 心跳 |
+| 红黄交替 | 没有保存 Wi-Fi 配置，需要 USB 配网 |
+| 红色双闪循环 | 有 Wi-Fi 配置，但 Wi-Fi 正在重连或连接失败 |
 
 ## 手动运行 Bridge
 
@@ -152,22 +151,13 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200
 python Bridge\codex_light_monitor.py --udp --udp-port 4210
 ```
 
-有线和无线同时启用：
+AUTO：
 
 ```powershell
 python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210 --firmware-mode AUTO
 ```
 
-无线要求电脑和 ESP32 在同一局域网，且路由器没有开启 AP 隔离/客户端隔离。Windows 防火墙需要允许 Python 使用 UDP 4210。
-
-## LED 行为
-
-- 未收到有效电脑心跳：GPIO5 黄灯闪烁。
-- 首次建立连接：GPIO6 绿灯闪烁 2 秒。
-- Codex 正在思考、回复或执行工具：GPIO7 红灯常亮。
-- 等待审批、权限或用户输入：GPIO5 黄灯常亮。
-- `task_complete` 或 `turn_aborted`：GPIO6 绿灯常亮。
-- 当前有效传输超过 6 秒没有心跳：恢复黄灯闪烁。
+无线模式要求电脑和 ESP32 在同一局域网，路由器没有开启 AP 隔离/客户端隔离，Windows 防火墙允许 Python 使用 UDP 4210。
 
 ## 串口命令
 
@@ -177,13 +167,13 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-por
 | `RED` | 设置有线状态为红色并刷新心跳 |
 | `YELLOW` | 设置有线状态为黄色并刷新心跳 |
 | `PING` | 刷新有线心跳，回复 `PONG` |
-| `STATUS` | 输出模式、活动传输、Wi-Fi 状态、IP 等诊断信息 |
+| `STATUS` | 输出模式、活动传输、Wi-Fi、IP、UDP 诊断 |
 | `MODE WIRED` | 只使用 USB，并保存模式 |
 | `MODE WIRELESS` | 只使用 UDP，并保存模式 |
-| `MODE AUTO` | 同时接受 USB 和 UDP，并保存模式 |
+| `MODE AUTO` | 接受 USB 和 UDP，并保存模式 |
 | `WIFI_CONFIG` | 提示当前使用 USB 配网 |
 | `WIFI_SET <ssid><TAB><password>` | 通过 USB 设置 Wi-Fi，连接成功后保存 |
-| `CLEAR_WIFI` | 清除已保存 Wi-Fi，并关闭 Wi-Fi 等待重新配网 |
+| `CLEAR_WIFI` | 清除已保存 Wi-Fi，等待重新配网 |
 
 ## UDP 协议
 
@@ -193,43 +183,45 @@ Bridge 发送：
 CODEXLIGHT/1 GREEN
 CODEXLIGHT/1 RED
 CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 PING
 ```
 
-ESP32 每 2 秒广播发现包：
+ESP32 回复：
 
 ```text
-CODEXLIGHT/1 HELLO mac=AA:BB:CC:DD:EE:FF mode=AUTO
+CODEXLIGHT/1 ACK mac=<MAC> mode=<MODE> active=<TRANSPORT> state=<STATE>
 ```
 
-默认 UDP 端口为 `4210`。
+ESP32 也会广播发现包：
+
+```text
+CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
+```
+
+默认 UDP 端口是 `4210`。
 
 ## 排障
 
 ### Wi-Fi 配网失败
 
-- 确认 USB 已连接，且 PlatformIO Monitor 没有占用 COM 口。
-- 使用托盘失败弹窗里的详细日志判断原因。
-- 查看 `Bridge/logs/wifi_setup.out.log` 和 `Bridge/logs/wifi_setup.err.log`。
+- 确认 USB 已连接，且 PlatformIO Monitor/串口助手没有占用 COM 口。
 - ESP32-C3 只支持 2.4 GHz Wi-Fi。
-- 如果日志显示能扫到目标网络、`auth=WPA2_PSK`、信号正常但反复 `reason=2`，通常是 ESP32-C3 Super Mini 射频功率过高导致认证超时。当前固件默认使用 `tx_power_qdbm=34`，也就是 8.5 dBm。
-- SSID/密码中有特殊字符时，请使用最新托盘版本；当前版本通过临时 JSON 传参，不会被 PowerShell 拆错。
+- 查看 `Bridge/logs/wifi_setup.out.log` 和 `Bridge/logs/wifi_setup.err.log`。
+- 如果日志能扫到目标网络、`auth=WPA2_PSK`、RSSI 正常但反复 `reason=2`，通常是部分 ESP32-C3 Super Mini 射频功率过高导致认证超时。当前固件默认 `WIFI_MAX_TX_POWER_QDBM = 34`，也就是 8.5 dBm。
 
-### 无线模式没有反应
+### 纯无线没有响应
 
-- 确认设备串口输出 `WIFI_CONNECTED <ssid> <ip>`。
-- 确认电脑和设备在同一局域网。
-- 允许 Python 通过 Windows 防火墙使用 UDP 4210。
-- 删除 `Bridge/config.local.json` 让 Bridge 重新发现设备。
-- 先切到 `AUTO`，插 USB 验证设备能收到状态。
+- 黄灯慢闪表示 Wi-Fi 已连接，只是在等托盘 UDP；打开托盘即可。
+- 红色双闪表示 Wi-Fi 正在重连或失败，检查路由器、SSID、密码和 2.4 GHz 网络。
+- `ping 192.168.x.x` 不通且 `arp -a` 没有设备 MAC 时，设备没有在局域网在线。
+- 删除 `Bridge/config.local.json` 可让 Bridge 重新发现设备 IP。
+- Windows 防火墙需要允许 Python UDP 4210。
 
-### 黄灯一直闪
+### 打开串口助手后才正常
 
-- Bridge 没有运行，或选错了连接模式。
-- COM 口被 PlatformIO Monitor 占用。
-- 无线模式下设备和电脑不在同一局域网。
-- 运行 `STATUS` 查看 `mode`、`active`、`wifi`、`network`、`radio`。
+旧固件在无电脑 USB 时可能被 `Serial.flush()` 阻塞。当前固件已移除此阻塞，并默认关闭调试串口输出。请确认已烧录最新固件。
 
-### 完全恢复出厂状态
+### 恢复出厂状态
 
 ```powershell
 cd Firmware

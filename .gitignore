@@ -32,5 +32,25 @@ Bridge/__pycache__/
 **/__pycache__/
 *.py[cod]
 
+# Local runtime state and secrets.
+*.local.json
+*.local.toml
+*.local.yaml
+*.local.yml
+*.log
+*.tmp
+*.bak
+wifi_secrets.h
+secrets.h
+credentials.*
+
+# Python and Windows local caches.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyo
+Thumbs.db
+Desktop.ini
+
 # Local diagnostic firmware sketches that are not part of the shipped build.
 Firmware/ap_join_test/

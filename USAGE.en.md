@@ -2,7 +2,7 @@
 
 English | [简体中文](USAGE.md) | [Project Home](README.en.md)
 
-This guide covers firmware upload, USB Wi-Fi provisioning, wired/wireless/AUTO modes, Windows tray operation, serial commands, UDP protocol, troubleshooting, and verification.
+This guide covers firmware upload, USB Wi-Fi provisioning, wired/wireless/AUTO modes, Windows tray operation, serial commands, UDP protocol, standalone power, troubleshooting, and verification.
 
 ## Prerequisites
 
@@ -27,45 +27,25 @@ pio run
 pio run -t upload --upload-port COM4
 ```
 
-Replace `COM4` with the actual ESP32-C3 port. Open the serial monitor:
+Replace `COM4` with the actual ESP32-C3 port. Open the serial monitor with:
 
 ```powershell
 pio device monitor --port COM4 --baud 115200
 ```
 
-When no Wi-Fi is configured, expected output is similar to:
-
-```text
-CODEXLIGHT READY
-WIFI_PROVISIONING USB_SERIAL
-[WiFi] No saved Wi-Fi credentials; waiting for USB provisioning
-WIFI_USB_PROVISIONING READY FORMAT=WIFI_SET <ssid><TAB><password>
-STATUS mode=AUTO active=NONE wifi=DISCONNECTED ... network=USB_PROVISIONING radio=OFF
-```
-
-After Wi-Fi is configured, expected output is similar to:
-
-```text
-CODEXLIGHT READY
-WIFI_PROVISIONING USB_SERIAL
-[WiFi] Connecting to YourWifi
-WIFI_CONNECTED YourWifi 192.168.x.x
-STATUS mode=AUTO active=NONE wifi=CONNECTED ... radio=STA ip=192.168.x.x
-```
-
-PlatformIO Monitor and the Bridge cannot use the same COM port at the same time. Close the monitor before starting the Bridge.
+PlatformIO Monitor, serial terminal apps, and the Bridge cannot use the same COM port at the same time. Close the monitor before starting the tray.
 
 ## USB Wi-Fi Provisioning
 
-The current firmware no longer uses a phone AP portal. Use the tray menu:
+The current firmware no longer opens an ESP32 AP portal. Use the tray:
 
 1. Connect CodexLight to the computer over USB.
 2. Start the tray by double-clicking `Bridge\start_codex_light_tray.vbs`. This launcher defaults to `WIRELESS` mode.
 3. Right-click the tray icon and choose `Configure WiFi`.
-4. Enter the router SSID and password.
+4. Enter the 2.4 GHz router SSID and password.
 5. Click `Save`.
 
-On success, the tray shows `WiFi saved and connected.` The ESP32 stores the credentials in NVS and reconnects automatically on later boots.
+On success, the tray shows `WiFi saved and connected.` The device saves credentials only after a successful connection. Wrong passwords, missing SSIDs, or timeouts do not overwrite the previous saved configuration.
 
 Command-line provisioning is also available:
 
@@ -79,14 +59,12 @@ Successful output:
 DEVICE WIFI_SET_OK YourWifi 192.168.x.x
 ```
 
-Failure details are written to:
+Failure logs:
 
 ```text
 Bridge\logs\wifi_setup.out.log
 Bridge\logs\wifi_setup.err.log
 ```
-
-The firmware saves credentials only after a successful connection. Wrong passwords, missing SSIDs, or timeouts do not overwrite the saved configuration.
 
 ## Windows Tray
 
@@ -96,9 +74,9 @@ Recommended launcher:
 Bridge\start_codex_light_tray.vbs
 ```
 
-This starts the tray without leaving a PowerShell window open and defaults to `WIRELESS` mode. Do not close the hosting PowerShell process directly; right-click the tray icon and choose `Exit`.
+This starts the tray without leaving a PowerShell window open and defaults to `WIRELESS` mode. To exit, right-click the tray icon and choose `Exit`.
 
-The legacy batch launcher is still available but may briefly show a console window:
+The legacy batch launcher is still available:
 
 ```text
 Bridge\start_codex_light_tray.bat
@@ -112,7 +90,7 @@ Bridge\start_codex_light_tray.bat wired
 Bridge\start_codex_light_tray.bat wireless
 ```
 
-The tray menu provides:
+Tray menu:
 
 - `Configure WiFi`: configure Wi-Fi over USB.
 - `Connection mode`: switch between `Auto`, `Wired only`, and `Wireless only`.
@@ -124,19 +102,40 @@ The tray menu provides:
 
 | Mode | Behavior | Recommended use |
 | --- | --- | --- |
-| `AUTO` | Bridge sends over USB and UDP; firmware prefers a fresh USB heartbeat and can fall back to UDP after USB expires | Daily use |
-| `WIRED` | USB serial only | Debugging, firmware validation, unstable Wi-Fi |
-| `WIRELESS` | Wi-Fi UDP only; USB is used only to save mode or configure Wi-Fi | Cable-free placement |
-
-Switch modes from the tray icon under `Connection mode`. The Bridge restarts its internal monitor and sends one of:
-
-```text
-MODE AUTO
-MODE WIRED
-MODE WIRELESS
-```
+| `AUTO` | Bridge sends over USB and UDP; firmware prefers a fresh USB heartbeat and can fall back to UDP after USB expires | Daily debugging or mixed connection |
+| `WIRED` | USB serial only | Firmware validation, serial debugging, unstable Wi-Fi |
+| `WIRELESS` | Wi-Fi UDP only; USB is used only for provisioning or mode setup | Cable-free placement |
 
 The selected mode is stored in ESP32 NVS and survives normal firmware uploads.
+
+## Wireless-Only Workflow
+
+1. Plug into the computer over USB and complete `Configure WiFi` once.
+2. From the tray, choose `Connection mode` -> `Wireless only`.
+3. Quit the tray.
+4. Unplug the computer USB and power the device from a power bank or stable battery-powered 5 V supply.
+5. Wait 20 to 60 seconds and check the LED pattern.
+6. Start the tray.
+7. If the log shows `UDP ack ... active=WIRELESS state=...`, wireless mode is working.
+
+When there is no computer USB connection, these log lines are expected:
+
+```text
+SERIAL no matching serial port
+SERIAL setup skipped; using saved firmware mode.
+```
+
+## LED Behavior and Diagnostics
+
+| LED pattern | Meaning |
+| --- | --- |
+| Solid green | Idle, task complete, or task aborted |
+| Solid red | Codex is reasoning, responding, or running tools |
+| Solid yellow | Waiting for approval, permission, or user input |
+| Green blink for 2 seconds | First desktop connection established |
+| Slow yellow blink | Wi-Fi is connected, but no desktop USB/UDP heartbeat has arrived |
+| Alternating red/yellow | No saved Wi-Fi credentials; provision over USB |
+| Repeating red double-blink | Saved Wi-Fi exists, but Wi-Fi is reconnecting or failed |
 
 ## Manual Bridge Commands
 
@@ -152,22 +151,13 @@ Wireless:
 python Bridge\codex_light_monitor.py --udp --udp-port 4210
 ```
 
-Both transports:
+AUTO:
 
 ```powershell
 python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-port 4210 --firmware-mode AUTO
 ```
 
 Wireless mode requires the computer and ESP32 to be on the same LAN, with router AP/client isolation disabled. Windows Firewall must allow Python to use UDP port `4210`.
-
-## LED Behavior
-
-- No valid desktop heartbeat: GPIO5 yellow blinks.
-- First desktop connection: GPIO6 green blinks for two seconds.
-- Codex reasoning, responding, or running tools: GPIO7 red stays on.
-- Waiting for approval, permission, or user input: GPIO5 yellow stays on.
-- `task_complete` or `turn_aborted`: GPIO6 green stays on.
-- No heartbeat on the active transport for six seconds: returns to blinking yellow.
 
 ## Serial Commands
 
@@ -177,7 +167,7 @@ Wireless mode requires the computer and ESP32 to be on the same LAN, with router
 | `RED` | Set wired state to red and refresh heartbeat |
 | `YELLOW` | Set wired state to yellow and refresh heartbeat |
 | `PING` | Refresh wired heartbeat and reply with `PONG` |
-| `STATUS` | Print mode, active transport, Wi-Fi state, IP, and diagnostics |
+| `STATUS` | Print mode, active transport, Wi-Fi, IP, and UDP diagnostics |
 | `MODE WIRED` | Use USB only and persist mode |
 | `MODE WIRELESS` | Use UDP only and persist mode |
 | `MODE AUTO` | Accept USB and UDP and persist mode |
@@ -193,12 +183,19 @@ Bridge sends:
 CODEXLIGHT/1 GREEN
 CODEXLIGHT/1 RED
 CODEXLIGHT/1 YELLOW
+CODEXLIGHT/1 PING
 ```
 
-The ESP32 broadcasts discovery every two seconds:
+ESP32 replies:
 
 ```text
-CODEXLIGHT/1 HELLO mac=AA:BB:CC:DD:EE:FF mode=AUTO
+CODEXLIGHT/1 ACK mac=<MAC> mode=<MODE> active=<TRANSPORT> state=<STATE>
+```
+
+ESP32 also broadcasts discovery:
+
+```text
+CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 ```
 
 The default UDP port is `4210`.
@@ -207,27 +204,22 @@ The default UDP port is `4210`.
 
 ### Wi-Fi setup fails
 
-- Confirm USB is connected and PlatformIO Monitor is not using the COM port.
-- Use the detailed failure text shown by the tray.
-- Check `Bridge/logs/wifi_setup.out.log` and `Bridge/logs/wifi_setup.err.log`.
+- Confirm USB is connected and PlatformIO Monitor or another serial terminal is not using the COM port.
 - ESP32-C3 supports 2.4 GHz Wi-Fi only.
-- If the log shows the target network, `auth=WPA2_PSK`, good RSSI, and repeated `reason=2`, the ESP32-C3 Super Mini radio may be timing out because transmit power is too high. The current firmware defaults to `tx_power_qdbm=34`, or 8.5 dBm.
-- Use the latest tray version if SSID/password contains spaces or special characters; it passes credentials through a temporary JSON file.
+- Check `Bridge/logs/wifi_setup.out.log` and `Bridge/logs/wifi_setup.err.log`.
+- If the target AP is visible with `auth=WPA2_PSK`, good RSSI, and repeated `reason=2`, some ESP32-C3 Super Mini boards are likely timing out during authentication. The current firmware defaults to `WIFI_MAX_TX_POWER_QDBM = 34`, or 8.5 dBm.
 
 ### Wireless mode does not respond
 
-- Confirm serial output shows `WIFI_CONNECTED <ssid> <ip>`.
-- Put the computer and device on the same LAN.
-- Allow Python through Windows Firewall for UDP `4210`.
+- Slow yellow blink means Wi-Fi is connected and the device is waiting for tray UDP; start the tray.
+- Repeating red double-blink means Wi-Fi is reconnecting or failed; check router, SSID/password, and 2.4 GHz availability.
+- If `ping 192.168.x.x` fails and `arp -a` does not show the device MAC, the device is not online on the LAN.
 - Delete `Bridge/config.local.json` to force rediscovery.
-- Switch to `AUTO` and plug in USB to verify the device receives states.
+- Allow Python through Windows Firewall for UDP `4210`.
 
-### Yellow keeps blinking
+### Works only after opening a serial monitor
 
-- The Bridge is not running, or the wrong connection mode is selected.
-- The COM port is held by PlatformIO Monitor.
-- In wireless mode, the computer and device are not on the same LAN.
-- Run `STATUS` and inspect `mode`, `active`, `wifi`, `network`, and `radio`.
+Older firmware could block on `Serial.flush()` when no computer USB serial session was open. The current firmware removes that startup block and disables default debug serial output. Make sure the latest firmware is uploaded.
 
 ### Full factory reset
 
