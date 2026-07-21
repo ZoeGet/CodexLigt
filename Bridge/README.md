@@ -30,7 +30,7 @@ python -m pip install pyserial
 
 ## 托盘启动
 
-推荐双击隐藏启动器：
+推荐双击隐藏启动器，默认进入 `WIRELESS` 模式：
 
 ```text
 Bridge\start_codex_light_tray.vbs
@@ -70,6 +70,8 @@ WIFI_SET_OK <ssid> <ip>
 Bridge\logs\wifi_setup.out.log
 Bridge\logs\wifi_setup.err.log
 ```
+
+如果日志显示 `auth=WPA2_PSK`、RSSI 正常但反复 `reason=2`，这是部分 ESP32-C3 Super Mini 板子常见的认证超时问题。固件默认把 Wi-Fi 发射功率降到 `tx_power_qdbm=34`（8.5 dBm）来提高连接稳定性。
 
 命令行配网：
 

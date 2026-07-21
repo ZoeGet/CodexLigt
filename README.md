@@ -11,8 +11,9 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
 - Wi-Fi 配网采用 USB 串口配置，不再使用 ESP32 AP 热点配网。
 - 托盘程序提供 `Configure WiFi` 菜单，输入 SSID/密码后通过 USB 发送给设备。
 - 设备只在连接成功后保存 Wi-Fi；失败配置不会写入 Flash。
+- ESP32-C3 Wi-Fi 连接默认把发射功率降到 8.5 dBm，解决部分 Super Mini 板子能搜到 2.4 GHz WPA2 网络但认证超时的问题。
 - 支持 `AUTO`、`WIRED`、`WIRELESS` 三种持久化连接模式。
-- Windows 托盘可用隐藏启动器 `Bridge/start_codex_light_tray.vbs` 后台运行，不保留 PowerShell 窗口。
+- Windows 托盘可用隐藏启动器 `Bridge/start_codex_light_tray.vbs` 后台运行，不保留 PowerShell 窗口；该启动器默认进入 `WIRELESS` 模式。
 
 ## 状态定义
 
@@ -41,7 +42,7 @@ CodexLight 是一套基于 ESP32-C3 的 Codex Desktop 状态灯。电脑端 Brid
    pio run -t upload --upload-port COM4
    ```
 
-3. 双击启动隐藏托盘：
+3. 双击启动隐藏托盘，默认进入无线模式：
 
    ```text
    Bridge\start_codex_light_tray.vbs

@@ -60,7 +60,7 @@ PlatformIO Monitor 和 Bridge 不能同时占用同一个 COM 口。使用 Bridg
 现在不再使用手机连接 ESP32 热点配网。推荐使用托盘菜单：
 
 1. 用 USB 连接电脑和 CodexLight。
-2. 启动托盘：双击 `Bridge\start_codex_light_tray.vbs`。
+2. 启动托盘：双击 `Bridge\start_codex_light_tray.vbs`。该启动器默认进入 `WIRELESS` 模式。
 3. 右键托盘图标，选择 `Configure WiFi`。
 4. 输入路由器 SSID 和密码。
 5. 点击 `Save`。
@@ -96,7 +96,7 @@ Bridge\logs\wifi_setup.err.log
 Bridge\start_codex_light_tray.vbs
 ```
 
-这个启动器会隐藏 PowerShell 窗口。不要直接关闭托盘程序所属的 PowerShell 进程；退出时右键托盘图标选择 `Exit`。
+这个启动器会隐藏 PowerShell 窗口，并默认以 `WIRELESS` 模式启动。不要直接关闭托盘程序所属的 PowerShell 进程；退出时右键托盘图标选择 `Exit`。
 
 旧批处理启动器仍可用，但可能短暂显示控制台窗口：
 
@@ -211,6 +211,7 @@ CODEXLIGHT/1 HELLO mac=AA:BB:CC:DD:EE:FF mode=AUTO
 - 使用托盘失败弹窗里的详细日志判断原因。
 - 查看 `Bridge/logs/wifi_setup.out.log` 和 `Bridge/logs/wifi_setup.err.log`。
 - ESP32-C3 只支持 2.4 GHz Wi-Fi。
+- 如果日志显示能扫到目标网络、`auth=WPA2_PSK`、信号正常但反复 `reason=2`，通常是 ESP32-C3 Super Mini 射频功率过高导致认证超时。当前固件默认使用 `tx_power_qdbm=34`，也就是 8.5 dBm。
 - SSID/密码中有特殊字符时，请使用最新托盘版本；当前版本通过临时 JSON 传参，不会被 PowerShell 拆错。
 
 ### 无线模式没有反应

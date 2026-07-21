@@ -32,7 +32,7 @@ The current firmware does not open a SoftAP provisioning portal. Provisioning is
 Tray workflow:
 
 1. Connect the device over USB.
-2. Start `Bridge\start_codex_light_tray.vbs`.
+2. Start `Bridge\start_codex_light_tray.vbs`, which defaults to `WIRELESS` mode.
 3. Right-click the tray icon and choose `Configure WiFi`.
 4. Enter SSID/password and save.
 
@@ -71,7 +71,7 @@ The mode is stored under Preferences namespace `codexlight`, key `transport`.
 
 ## Windows Tray
 
-Use the hidden launcher:
+Use the hidden launcher, which defaults to `WIRELESS` mode:
 
 ```text
 Bridge\start_codex_light_tray.vbs
@@ -138,7 +138,13 @@ Main files:
 - `Firmware/src/config_portal.cpp`: STA Wi-Fi connection and USB provisioning wrapper. The name is retained for compatibility with older code.
 - `Firmware/src/storage.cpp`: Preferences storage for Wi-Fi credentials.
 - `Firmware/src/led.cpp`: three independent NeoPixel outputs.
-- `Firmware/include/config.h`: GPIO, brightness, timeouts, UDP port, default mode.
+- `Firmware/include/config.h`: GPIO, brightness, timeouts, UDP port, default mode, and ESP32-C3 Wi-Fi transmit power.
+
+Wi-Fi connection notes:
+
+- The firmware uses USB serial provisioning only; SoftAP provisioning is disabled.
+- Credentials are stored only after the STA interface reaches `WL_CONNECTED`.
+- ESP32-C3 transmit power is limited to `WIFI_MAX_TX_POWER_QDBM = 34` (8.5 dBm). This avoids authentication timeouts seen on some Super Mini boards that can scan a 2.4 GHz WPA2 network but repeatedly disconnect with `reason=2`.
 
 Startup flow:
 
@@ -184,7 +190,7 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 
 ## Troubleshooting
 
-- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi.
+- Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi. If the target AP is visible with WPA2 and good RSSI but disconnects with `reason=2`, confirm the firmware log includes `tx_power_qdbm=34`.
 - Wireless does not update: confirm same LAN, allow UDP 4210 through firewall, delete `Bridge/config.local.json` to rediscover.
 - Yellow keeps blinking: Bridge is not running, mode is wrong, serial is occupied, or UDP discovery cannot reach the device.
 - Colors are wrong: verify `NEO_GRB`, DIN orientation, GPIO continuity, and 5 V power.

@@ -60,7 +60,7 @@ PlatformIO Monitor and the Bridge cannot use the same COM port at the same time.
 The current firmware no longer uses a phone AP portal. Use the tray menu:
 
 1. Connect CodexLight to the computer over USB.
-2. Start the tray by double-clicking `Bridge\start_codex_light_tray.vbs`.
+2. Start the tray by double-clicking `Bridge\start_codex_light_tray.vbs`. This launcher defaults to `WIRELESS` mode.
 3. Right-click the tray icon and choose `Configure WiFi`.
 4. Enter the router SSID and password.
 5. Click `Save`.
@@ -96,7 +96,7 @@ Recommended launcher:
 Bridge\start_codex_light_tray.vbs
 ```
 
-This starts the tray without leaving a PowerShell window open. Do not close the hosting PowerShell process directly; right-click the tray icon and choose `Exit`.
+This starts the tray without leaving a PowerShell window open and defaults to `WIRELESS` mode. Do not close the hosting PowerShell process directly; right-click the tray icon and choose `Exit`.
 
 The legacy batch launcher is still available but may briefly show a console window:
 
@@ -211,6 +211,7 @@ The default UDP port is `4210`.
 - Use the detailed failure text shown by the tray.
 - Check `Bridge/logs/wifi_setup.out.log` and `Bridge/logs/wifi_setup.err.log`.
 - ESP32-C3 supports 2.4 GHz Wi-Fi only.
+- If the log shows the target network, `auth=WPA2_PSK`, good RSSI, and repeated `reason=2`, the ESP32-C3 Super Mini radio may be timing out because transmit power is too high. The current firmware defaults to `tx_power_qdbm=34`, or 8.5 dBm.
 - Use the latest tray version if SSID/password contains spaces or special characters; it passes credentials through a temporary JSON file.
 
 ### Wireless mode does not respond

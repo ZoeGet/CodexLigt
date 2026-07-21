@@ -30,7 +30,7 @@ python -m pip install pyserial
 
 ## Tray Startup
 
-Recommended hidden launcher:
+Recommended hidden launcher. It defaults to `WIRELESS` mode:
 
 ```text
 Bridge\start_codex_light_tray.vbs
@@ -70,6 +70,8 @@ Failure logs are written to:
 Bridge\logs\wifi_setup.out.log
 Bridge\logs\wifi_setup.err.log
 ```
+
+If the log shows `auth=WPA2_PSK`, normal RSSI, and repeated `reason=2`, some ESP32-C3 Super Mini boards are likely timing out during authentication. The firmware defaults Wi-Fi transmit power to `tx_power_qdbm=34` (8.5 dBm) to improve connection stability.
 
 Command-line provisioning:
 

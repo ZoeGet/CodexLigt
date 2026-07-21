@@ -11,8 +11,9 @@ This is an independent community project and is not officially affiliated with o
 - Wi-Fi provisioning is done over USB serial. The firmware no longer opens an ESP32 AP provisioning portal.
 - The tray app provides `Configure WiFi`, which sends SSID/password to the device over USB.
 - The device saves Wi-Fi credentials only after a successful connection. Failed credentials are not persisted.
+- ESP32-C3 Wi-Fi now defaults to 8.5 dBm transmit power, fixing some Super Mini boards that can scan 2.4 GHz WPA2 networks but time out during authentication.
 - Persistent `AUTO`, `WIRED`, and `WIRELESS` transport modes are supported.
-- The Windows tray can be started without a PowerShell window by double-clicking `Bridge/start_codex_light_tray.vbs`.
+- The Windows tray can be started without a PowerShell window by double-clicking `Bridge/start_codex_light_tray.vbs`; this launcher defaults to `WIRELESS` mode.
 
 ## State Mapping
 
@@ -41,7 +42,7 @@ When the first valid desktop heartbeat arrives, the green LED blinks for two sec
    pio run -t upload --upload-port COM4
    ```
 
-3. Start the hidden tray launcher:
+3. Start the hidden tray launcher. It defaults to wireless mode:
 
    ```text
    Bridge\start_codex_light_tray.vbs
