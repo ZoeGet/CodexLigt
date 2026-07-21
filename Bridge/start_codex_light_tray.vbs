@@ -6,7 +6,7 @@ Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-mode = "AUTO"
+mode = "WIRELESS"
 If WScript.Arguments.Count > 0 Then
   mode = UCase(WScript.Arguments(0))
 End If

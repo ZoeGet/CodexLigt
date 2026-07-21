@@ -59,6 +59,7 @@ class StateEmitter:
         config: dict,
         firmware_mode: str = "",
         serial_setup_only: bool = False,
+        mode_setup_enabled: bool = True,
     ) -> None:
         self.repeat = repeat
         self.last_state: Optional[str] = None
@@ -85,6 +86,7 @@ class StateEmitter:
         self.serial_setup_complete = False
         self.serial_mode_confirmed = False
         self.last_serial_mode_send = 0.0
+        self.mode_setup_enabled = mode_setup_enabled
 
         if serial_port:
             try:
@@ -177,6 +179,14 @@ class StateEmitter:
         port = self.resolve_serial_port()
         if port is None:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL no matching serial port", flush=True)
+            if self.serial_setup_only and self.udp_enabled:
+                print(
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} "
+                    "SERIAL setup skipped; using saved firmware mode.",
+                    flush=True,
+                )
+                self.serial_setup_complete = True
+                self.serial_port = None
             return
 
         try:
@@ -185,7 +195,8 @@ class StateEmitter:
             time.sleep(SERIAL_READY_DELAY_SECONDS)
             self.serial_mode_confirmed = False
             self.last_serial_mode_send = 0.0
-            self.service_serial()
+            if self.mode_setup_enabled:
+                self.service_serial()
             if self.last_state and not self.serial_setup_only:
                 self.serial.write((self.last_state + "\n").encode("ascii"))
                 self.serial.flush()
@@ -193,6 +204,14 @@ class StateEmitter:
         except Exception as exc:  # pyserial raises platform-specific exceptions.
             self.serial = None
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL connect failed {port}: {exc}", flush=True)
+            if self.serial_setup_only and self.udp_enabled:
+                print(
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} "
+                    "SERIAL setup skipped; using saved firmware mode.",
+                    flush=True,
+                )
+                self.serial_setup_complete = True
+                self.serial_port = None
 
     def resolve_serial_port(self) -> Optional[str]:
         if not self.serial_port:
@@ -292,7 +311,7 @@ class StateEmitter:
         state_changed = state != self.last_state
         now = time.monotonic()
 
-        if self.serial_port:
+        if self.serial_port and self.mode_setup_enabled:
             self.connect_serial()
             self.service_serial()
 
@@ -419,7 +438,7 @@ def load_local_config(path: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        with path.open("r", encoding="utf-8") as handle:
+        with path.open("r", encoding="utf-8-sig") as handle:
             value = json.load(handle)
     except (OSError, json.JSONDecodeError):
         return {}
@@ -700,6 +719,17 @@ def main() -> int:
     device_mac = normalize_mac(args.device_mac or str(config.get("device_mac") or ""))
     device_ip = str(config.get("last_device_ip") or "")
 
+    wifi_ssid = args.wifi_ssid
+    wifi_password = args.wifi_password
+    if args.wifi_config is not None:
+        wifi_config = load_local_config(args.wifi_config)
+        wifi_ssid = str(wifi_config.get("ssid") or "")
+        wifi_password = str(wifi_config.get("password") or "")
+        if not wifi_ssid:
+            print("WIFI_SETUP_ERROR CONFIG_INVALID", flush=True)
+            return 2
+    wifi_setup_requested = bool(wifi_ssid)
+
     emitter = StateEmitter(
         args.serial,
         args.baud,
@@ -714,14 +744,8 @@ def main() -> int:
         config,
         args.firmware_mode,
         args.serial_setup_only,
+        not wifi_setup_requested,
     )
-
-    wifi_ssid = args.wifi_ssid
-    wifi_password = args.wifi_password
-    if args.wifi_config is not None:
-        wifi_config = load_local_config(args.wifi_config)
-        wifi_ssid = str(wifi_config.get("ssid") or "")
-        wifi_password = str(wifi_config.get("password") or "")
 
     if wifi_ssid:
         return 0 if emitter.configure_wifi(wifi_ssid, wifi_password) else 2

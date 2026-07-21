@@ -2,7 +2,7 @@ param(
   [string]$Python = "",
   [string]$WorkDir = "",
   [ValidateSet("AUTO", "WIRED", "WIRELESS")]
-  [string]$ConnectionMode = "AUTO",
+  [string]$ConnectionMode = "WIRELESS",
   [string]$SerialPort = "auto",
   [int]$SerialBaud = 115200,
   [int]$UdpPort = 4210
@@ -136,6 +136,8 @@ function Invoke-WifiSetup {
     $statusLabel.Text = "Configuring..."
     $form.Refresh()
     Stop-Monitor
+    Stop-BridgeMonitorProcesses
+    Start-Sleep -Milliseconds 500
 
     Remove-Item -LiteralPath $wifiSetupOutLog, $wifiSetupErrLog -Force -ErrorAction SilentlyContinue
 
@@ -158,13 +160,29 @@ function Invoke-WifiSetup {
       -WindowStyle Hidden `
       -RedirectStandardOutput $wifiSetupOutLog `
       -RedirectStandardError $wifiSetupErrLog `
-      -Wait `
       -PassThru
+
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not $process.HasExited -and (Get-Date) -lt $deadline) {
+      $statusLabel.Text = "Configuring..."
+      [System.Windows.Forms.Application]::DoEvents()
+      Start-Sleep -Milliseconds 250
+    }
+
+    if (-not $process.HasExited) {
+      try {
+        $process.Kill()
+        $process.WaitForExit(3000) | Out-Null
+      } catch {
+        # Process may have exited between the timeout check and Kill.
+      }
+      Add-Content -LiteralPath $wifiSetupErrLog -Value "WIFI_SETUP_ERROR TRAY_TIMEOUT"
+    }
 
     Remove-Item -LiteralPath $wifiConfigPath -Force -ErrorAction SilentlyContinue
 
     Start-Monitor
-    if ($process.ExitCode -eq 0) {
+    if ($process.HasExited -and $process.ExitCode -eq 0) {
       [System.Windows.Forms.MessageBox]::Show("WiFi saved and connected.", "CodexLight WiFi", "OK", "Information") | Out-Null
       $form.Close()
     } else {
@@ -237,6 +255,21 @@ function Stop-Monitor {
     }
   }
   $script:monitorProcess = $null
+}
+
+function Stop-BridgeMonitorProcesses {
+  Get-CimInstance Win32_Process |
+    Where-Object {
+      ($_.Name -match '^(python|pythonw)\.exe$') -and
+      ($_.CommandLine -like "*$monitorScript*")
+    } |
+    ForEach-Object {
+      try {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+      } catch {
+        # Process may already be gone.
+      }
+    }
 }
 
 function Restart-Monitor {
