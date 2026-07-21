@@ -10,7 +10,7 @@ The Bridge runs on the Windows computer hosting Codex Desktop. It reads local Co
 - Supports USB serial, UDP, and mixed AUTO mode.
 - Provides a Windows tray menu for Wi-Fi setup, mode switching, logs, monitor restart, and exit.
 - Configures device Wi-Fi over USB serial. The firmware no longer uses an ESP32 AP portal.
-- Stores discovered UDP device MAC/IP in `Bridge/config.local.json`.
+- Remembers the most recently discovered UDP device for wireless startup.
 - When no computer USB is connected, the tray skips serial setup and continues UDP using the device's saved wireless mode.
 
 ## State Rules
@@ -109,15 +109,12 @@ python Bridge\codex_light_monitor.py --serial auto --baud 115200 --udp --udp-por
 | `--wifi-ssid` / `--wifi-password` | One-shot USB Wi-Fi provisioning |
 | `--wifi-config path.json` | Read `{ "ssid": "...", "password": "..." }` from JSON |
 
-## Logs and Local Files
+## Logs
 
 - `Bridge/logs/codex_light_monitor.out.log`
 - `Bridge/logs/codex_light_monitor.err.log`
 - `Bridge/logs/wifi_setup.out.log`
 - `Bridge/logs/wifi_setup.err.log`
-- `Bridge/config.local.json`
-
-These files are local runtime state and should not be committed.
 
 ## Verification
 

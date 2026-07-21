@@ -196,16 +196,15 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 ## Troubleshooting
 
 - Wi-Fi setup fails: check `Bridge/logs/wifi_setup.out.log` and `.err.log`, close PlatformIO Monitor, verify 2.4 GHz Wi-Fi, and confirm firmware uses `WIFI_MAX_TX_POWER_QDBM = 34`.
-- Wireless does not update: confirm same LAN, allow UDP 4210 through firewall, delete `Bridge/config.local.json` to rediscover.
+- Wireless does not update: confirm same LAN, allow UDP 4210 through firewall, and restart the tray to rediscover the device.
 - Slow yellow blink: Wi-Fi is connected and the firmware is waiting for desktop heartbeats; start the tray.
 - Red double-blink: saved Wi-Fi exists but connection is still failing or reconnecting.
 - Colors are wrong: verify `NEO_GRB`, DIN orientation, GPIO continuity, and 5 V power.
 
-## Security and Local State
+## Security
 
 - Wi-Fi credentials are stored in ESP32 NVS and are not printed over serial.
 - UDP is unauthenticated and unencrypted; use only on trusted LANs.
-- Do not commit `Bridge/config.local.json`, `Bridge/logs/`, Wi-Fi passwords, or local device IPs.
 
 ## Verification
 

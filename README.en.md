@@ -114,15 +114,6 @@ CodexLight/
 └── USAGE.en.md    # English usage guide
 ```
 
-## Local Files
-
-Do not commit local runtime state:
-
-- `Bridge/config.local.json`: locally discovered device MAC/IP.
-- `Bridge/logs/`: runtime and Wi-Fi setup logs.
-- `.pio/`, `Firmware/.pio/`: PlatformIO build output.
-- Wi-Fi passwords, private SSIDs, local COM ports, or temporary files.
-
 ## Verification
 
 ```powershell

@@ -214,7 +214,7 @@ The default UDP port is `4210`.
 - Slow yellow blink means Wi-Fi is connected and the device is waiting for tray UDP; start the tray.
 - Repeating red double-blink means Wi-Fi is reconnecting or failed; check router, SSID/password, and 2.4 GHz availability.
 - If `ping 192.168.x.x` fails and `arp -a` does not show the device MAC, the device is not online on the LAN.
-- Delete `Bridge/config.local.json` to force rediscovery.
+- Restart the tray to force device rediscovery.
 - Allow Python through Windows Firewall for UDP `4210`.
 
 ### Full factory reset

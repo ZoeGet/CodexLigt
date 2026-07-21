@@ -214,7 +214,7 @@ CODEXLIGHT/1 HELLO mac=<MAC> mode=<MODE>
 - 黄灯慢闪表示 Wi-Fi 已连接，只是在等托盘 UDP；打开托盘即可。
 - 红色双闪表示 Wi-Fi 正在重连或失败，检查路由器、SSID、密码和 2.4 GHz 网络。
 - `ping 192.168.x.x` 不通且 `arp -a` 没有设备 MAC 时，设备没有在局域网在线。
-- 删除 `Bridge/config.local.json` 可让 Bridge 重新发现设备 IP。
+- 重启托盘可让 Bridge 重新发现设备 IP。
 - Windows 防火墙需要允许 Python UDP 4210。
 
 ### 恢复出厂状态

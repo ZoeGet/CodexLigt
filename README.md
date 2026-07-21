@@ -114,15 +114,6 @@ CodexLight/
 └── USAGE.en.md    # English usage guide
 ```
 
-## 本地文件
-
-不要提交以下本机运行状态：
-
-- `Bridge/config.local.json`：本机发现的设备 MAC/IP。
-- `Bridge/logs/`：运行日志和 Wi-Fi 配网日志。
-- `.pio/`、`Firmware/.pio/`：PlatformIO 构建产物。
-- Wi-Fi 密码、私有 SSID、本机端口号和临时文件。
-
 ## 验证
 
 ```powershell
