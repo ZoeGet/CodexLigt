@@ -210,7 +210,8 @@ function Get-MonitorArguments {
         "--baud", $SerialBaud.ToString(),
         "--udp", "--udp-port", $UdpPort.ToString(),
         "--firmware-mode", "WIRELESS",
-        "--serial-setup-only"
+        "--serial-setup-only",
+        "--reset-on-connect"
       )
     }
     default {

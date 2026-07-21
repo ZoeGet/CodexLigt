@@ -29,6 +29,7 @@ STATE_YELLOW = "YELLOW"
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.local.json")
 SERIAL_READY_DELAY_SECONDS = 2.0
 SERIAL_MODE_RETRY_SECONDS = 1.0
+SERIAL_RESET_DELAY_SECONDS = 0.15
 
 
 @dataclass
@@ -60,6 +61,7 @@ class StateEmitter:
         firmware_mode: str = "",
         serial_setup_only: bool = False,
         mode_setup_enabled: bool = True,
+        reset_on_connect: bool = False,
     ) -> None:
         self.repeat = repeat
         self.last_state: Optional[str] = None
@@ -81,7 +83,6 @@ class StateEmitter:
         self.last_udp_send = 0.0
         self.last_udp_broadcast_send = 0.0
         self.last_udp_subnet_probe = 0.0
-        self.last_udp_ack = 0.0
         self.last_serial_send = 0.0
         self.last_udp_listen = 0.0
         self.serial_mode = firmware_mode or ("AUTO" if self.udp_enabled else "WIRED")
@@ -91,6 +92,7 @@ class StateEmitter:
         self.last_serial_mode_send = 0.0
         self.last_serial_status_send = 0.0
         self.mode_setup_enabled = mode_setup_enabled
+        self.reset_on_connect = reset_on_connect
 
         if serial_port:
             try:
@@ -201,6 +203,8 @@ class StateEmitter:
         try:
             self.serial = self.serial_module.Serial(port, baudrate=self.baud, timeout=1)
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL connected {port}", flush=True)
+            if self.reset_on_connect:
+                self.reset_device_via_serial()
             time.sleep(SERIAL_READY_DELAY_SECONDS)
             self.serial_mode_confirmed = False
             self.last_serial_mode_send = 0.0
@@ -221,6 +225,22 @@ class StateEmitter:
                 )
                 self.serial_setup_complete = True
                 self.serial_port = None
+
+    def reset_device_via_serial(self) -> None:
+        if self.serial is None:
+            return
+
+        try:
+            self.serial.setDTR(False)
+            self.serial.setRTS(True)
+            time.sleep(SERIAL_RESET_DELAY_SECONDS)
+            self.serial.setRTS(False)
+            time.sleep(SERIAL_RESET_DELAY_SECONDS)
+            self.serial.setDTR(True)
+            self.serial.reset_input_buffer()
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL reset pulse sent", flush=True)
+        except Exception as exc:
+            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} SERIAL reset pulse failed: {exc}", flush=True)
 
     def resolve_serial_port(self) -> Optional[str]:
         if not self.serial_port:
@@ -375,15 +395,14 @@ class StateEmitter:
             targets = []
             if self.device_ip:
                 targets.append(self.device_ip)
-            needs_discovery = not self.device_ip or now - self.last_udp_ack >= 10.0
-            if needs_discovery and now - self.last_udp_broadcast_send >= 30.0:
+            if not self.device_ip or now - self.last_udp_broadcast_send >= self.udp_interval:
                 targets.extend(self.udp_broadcast_targets())
                 self.last_udp_broadcast_send = now
                 print(
                     f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP targets {', '.join(unique_ordered(targets))}",
                     flush=True,
                 )
-            if self.device_ip and needs_discovery and now - self.last_udp_subnet_probe >= 30.0:
+            if self.device_ip and now - self.last_udp_subnet_probe >= 10.0:
                 targets.extend(self.udp_subnet_probe_targets())
                 self.last_udp_subnet_probe = now
             for target in unique_ordered(targets):
@@ -451,13 +470,10 @@ class StateEmitter:
                     flush=True,
                 )
             if " ACK" in message:
-                was_missing = now - self.last_udp_ack >= 10.0
-                self.last_udp_ack = now
-                if was_missing:
-                    print(
-                        f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP ack from {sender[0]} {message}",
-                        flush=True,
-                    )
+                print(
+                    f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP ack from {sender[0]} {message}",
+                    flush=True,
+                )
 
 
 def default_sessions_root() -> Path:
@@ -768,6 +784,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wifi-ssid", default="", help="Configure device Wi-Fi over USB serial, then exit.")
     parser.add_argument("--wifi-password", default="", help="Wi-Fi password used with --wifi-ssid.")
     parser.add_argument("--wifi-config", type=Path, default=None, help="JSON file with ssid/password for USB Wi-Fi setup.")
+    parser.add_argument("--reset-on-connect", action="store_true", help="Pulse ESP32 reset lines after opening serial.")
     return parser.parse_args()
 
 
@@ -803,6 +820,7 @@ def main() -> int:
         args.firmware_mode,
         args.serial_setup_only,
         not wifi_setup_requested,
+        args.reset_on_connect,
     )
 
     if wifi_ssid:

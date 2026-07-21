@@ -401,7 +401,8 @@ void sendUdpAck(IPAddress remoteIp, uint16_t remotePort) {
   }
   const String message = "CODEXLIGHT/1 ACK mac=" + WiFi.macAddress() +
                          " mode=" + modeName(transportMode) +
-                         " active=" + transportName(activeTransport);
+                         " active=" + transportName(activeTransport) +
+                         " state=" + stateName(activeTransport == Transport::Wired ? wiredState : wirelessState);
   udp.beginPacket(remoteIp, remotePort);
   udp.print(message);
   udp.endPacket();
