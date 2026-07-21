@@ -85,11 +85,12 @@ bool ConfigPortal::autoConnect() {
     return true;
   }
 
-  WifiStorage::clear();
-  currentSsid_ = "";
-  logNetwork("Invalid saved Wi-Fi credentials cleared; waiting for USB provisioning");
-  WiFi.disconnect(false, true);
-  WiFi.mode(WIFI_OFF);
+  lastReconnectAttemptMs_ = millis();
+  logNetwork("Saved Wi-Fi failed; keeping credentials and retrying in wireless mode");
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(credentials.ssid.c_str(), credentials.password.c_str());
   return false;
 }
 
@@ -99,7 +100,32 @@ bool ConfigPortal::start() {
   return false;
 }
 
-void ConfigPortal::loop() {}
+void ConfigPortal::loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    currentSsid_ = WiFi.SSID();
+    return;
+  }
+
+  WifiCredentials credentials;
+  if (!loadCredentials(credentials)) {
+    return;
+  }
+
+  currentSsid_ = credentials.ssid;
+  const unsigned long now = millis();
+  if (lastReconnectAttemptMs_ != 0 && now - lastReconnectAttemptMs_ < WIFI_RECONNECT_INTERVAL_MS) {
+    return;
+  }
+
+  lastReconnectAttemptMs_ = now;
+  logNetwork("Retrying saved Wi-Fi " + credentials.ssid);
+  if (!connectTo(credentials.ssid, credentials.password)) {
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.begin(credentials.ssid.c_str(), credentials.password.c_str());
+  }
+}
 
 void ConfigPortal::resetSettings() {
   begin();
@@ -116,6 +142,7 @@ void ConfigPortal::configure(const String& ssid, const String& password) {
   currentSsid_ = ssid;
   if (connectTo(ssid, password)) {
     WifiStorage::save(ssid, password);
+    lastReconnectAttemptMs_ = 0;
   } else {
     currentSsid_ = "";
     WiFi.disconnect(false, true);

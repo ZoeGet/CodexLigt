@@ -26,6 +26,7 @@ class ConfigPortal {
   String apSsid_;
   String currentSsid_;
   bool initialized_ = false;
+  unsigned long lastReconnectAttemptMs_ = 0;
   uint8_t lastDisconnectReason_ = 0;
 
   void buildApSsid();
