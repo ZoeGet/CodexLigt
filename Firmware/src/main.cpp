@@ -510,6 +510,7 @@ void setup() {
   configPortal.autoConnect();
   if (configPortal.wifiConnected()) {
     Serial.println(String("WIFI_CONNECTED ") + WiFi.SSID() + " " + WiFi.localIP().toString());
+    maintainUdp();
   } else {
     Serial.println("WIFI_USB_PROVISIONING READY FORMAT=WIFI_SET <ssid><TAB><password>");
   }

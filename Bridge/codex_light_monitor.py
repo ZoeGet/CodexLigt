@@ -368,7 +368,7 @@ class StateEmitter:
     def emit_udp(self, state: str) -> None:
         if self.udp_socket is None:
             return
-        payload = f"CODEXLIGHT/1 {state}\n".encode("ascii")
+        payloads = [f"CODEXLIGHT/1 {state}\n".encode("ascii"), b"CODEXLIGHT/1 PING\n"]
         try:
             now = time.monotonic()
             targets = []
@@ -385,7 +385,8 @@ class StateEmitter:
                 targets.extend(self.udp_subnet_probe_targets())
                 self.last_udp_subnet_probe = now
             for target in unique_ordered(targets):
-                self.udp_socket.sendto(payload, (target, self.udp_port))
+                for payload in payloads:
+                    self.udp_socket.sendto(payload, (target, self.udp_port))
             self.last_udp_send = now
         except OSError as exc:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UDP send failed: {exc}", flush=True)
